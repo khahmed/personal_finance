@@ -1,0 +1,46 @@
+# Institution Configuration
+# This file maps institution directories to their parser classes.
+# The parser generator will automatically update this file when generating new parsers.
+
+institutions:
+  CIBC:
+    name: "CIBC"
+    parsers:
+      - pattern: "pps"
+        class: "CIBCPPSParser"
+        module: "parsers.cibc_pps_parser"
+        description: "CIBC Personal Portfolio Services (bank-managed accounts)"
+      - pattern: "*"  # default/fallback
+        class: "CIBCInvestorsEdgeParser"
+        module: "parsers.cibc_investorsedge_parser"
+        description: "CIBC Investor's Edge Self-Directed accounts"
+
+  ScotiaBank:
+    name: "ScotiaBank"
+    parsers:
+      - pattern: "*"
+        class: "ScotiaBankParser"
+        module: "parsers.scotiabank_parser"
+        description: "ScotiaMcLeod investment accounts"
+
+  SunLife:
+    name: "SunLife"
+    parsers:
+      - pattern: "*"
+        class: "SunLifeParser"
+        module: "parsers.sunlife_parser"
+        description: "Sun Life Financial group retirement accounts"
+
+  Olympia:
+    name: "Olympia Trust"
+    parsers:
+      - pattern: "*"
+        class: "OlympiaParser"
+        module: "parsers.olympia_parser"
+        description: "Olympia Trust Company accounts"
+
+# Pattern matching rules:
+# - Patterns are matched against the lowercase filename
+# - "*" matches anything (use as default/fallback)
+# - Use keywords like "pps", "tfsa", "rrsp" to match specific account types
+# - First matching pattern wins

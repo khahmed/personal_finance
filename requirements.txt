@@ -1,0 +1,16 @@
+# PDF Processing
+pdfplumber==0.10.3
+
+# Database
+psycopg2-binary==2.9.9
+
+# Data Analysis
+pandas==2.1.4
+numpy==1.26.2
+
+# Visualization
+matplotlib==3.8.2
+seaborn==0.13.0
+
+# Utilities
+python-dateutil==2.8.2
