@@ -1,0 +1,52 @@
+agents:
+  portfolio_data:
+    model: "deepseek-chat"
+    temperature: 0.1
+    max_iterations: 3
+    tools:
+      - database_query
+      - portfolio_analyzer
+
+  tax_advisor:
+    model: "deepseek-chat"
+    temperature: 0.2
+    max_iterations: 5
+    tools:
+      - tax_calculator
+      - cra_data
+    knowledge_base: "tax_laws/canadian_tax.md"
+
+  estate_planner:
+    model: "deepseek-chat"
+    temperature: 0.3
+    max_iterations: 5
+    tools:
+      - product_database
+      - probate_calculator
+    knowledge_base: "estate_planning/strategies.md"
+
+  investment_analyst:
+    model: "deepseek-chat"
+    temperature: 0.3
+    max_iterations: 5
+    tools:
+      - market_data
+      - risk_calculator
+      - news_aggregator
+    knowledge_base: "investment/strategies.md"
+
+sub_agents:
+  market_research:
+    model: "deepseek-chat"
+    temperature: 0.1
+    tools:
+      - alpha_vantage
+      - yahoo_finance
+
+  risk_assessment:
+    model: "deepseek-chat"
+    temperature: 0.1
+    tools:
+      - portfolio_stats
+      - risk_metrics
+
