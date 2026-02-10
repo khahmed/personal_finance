@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent Observability Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .monitor-header { margin-bottom: 24px; }
+        .monitor-header h1 { color: #667eea; font-size: 1.8em; }
+        .sessions-list { background: #f8f9fa; border-radius: 8px; padding: 16px; margin-bottom: 24px; }
+        .session-row { display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid #e0e0e0; cursor: pointer; border-radius: 6px; }
+        .session-row:hover { background: #e8eaf6; }
+        .session-row.selected { background: #667eea; color: white; }
+        .session-id { font-family: monospace; font-size: 12px; color: #666; }
+        .session-row.selected .session-id { color: rgba(255,255,255,0.9); }
+        .session-meta { font-size: 12px; color: #666; }
+        .session-row.selected .session-meta { color: rgba(255,255,255,0.9); }
+        .timeline { padding: 16px; background: white; border-radius: 8px; border: 1px solid #e0e0e0; }
+        .timeline h3 { margin-bottom: 16px; color: #667eea; }
+        .span-block { margin-bottom: 12px; border-left: 4px solid #667eea; padding: 12px; background: #f8f9fa; border-radius: 0 8px 8px 0; }
+        .span-block.llm_call { border-left-color: #764ba2; }
+        .span-block.agent { border-left-color: #667eea; }
+        .span-block.workflow { border-left-color: #4caf50; }
+        .span-block.agent_message { border-left-color: #ff9800; }
+        .span-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .span-name { font-weight: 600; }
+        .span-duration { font-family: monospace; font-size: 12px; color: #666; }
+        .span-meta { font-size: 12px; color: #555; margin-top: 8px; }
+        .span-meta pre { background: #eee; padding: 8px; border-radius: 4px; overflow-x: auto; max-height: 120px; overflow-y: auto; }
+        .empty-state { text-align: center; padding: 48px; color: #666; }
+        .refresh-btn { margin-left: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="monitor-header">
+            <h1>🔭 Multi-Agent Observability Monitor</h1>
+            <p class="subtitle">Monitor LLM calls and agent interactions</p>
+            <p><a href="/">← Back to Portfolio Query</a> | <a href="/api/v2/comprehensive-review" target="_blank">Trigger comprehensive review (POST)</a></p>
+        </header>
+
+        <div class="main-content">
+            <div class="sessions-list">
+                <div class="results-header">
+                    <h3>Recent Sessions</h3>
+                    <button id="refreshSessions" class="btn btn-small refresh-btn">Refresh</button>
+                </div>
+                <div id="sessionsContainer">
+                    <div class="empty-state" id="sessionsEmpty">Loading sessions…</div>
+                    <div id="sessionsList" style="display: none;"></div>
+                </div>
+            </div>
+
+            <div class="timeline" id="timelineSection" style="display: none;">
+                <h3>Session Timeline</h3>
+                <div id="timelineContent"></div>
+            </div>
+            <div class="empty-state" id="timelineEmpty">Select a session to view timeline</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/observability';
+
+        async function loadSessions() {
+            const container = document.getElementById('sessionsContainer');
+            const empty = document.getElementById('sessionsEmpty');
+            const list = document.getElementById('sessionsList');
+            try {
+                const res = await fetch(`${API_BASE}/sessions?limit=30`);
+                const data = await res.json();
+                if (!res.ok) {
+                    empty.textContent = data.error || 'Failed to load sessions';
+                    empty.style.display = 'block';
+                    list.style.display = 'none';
+                    return;
+                }
+                const sessions = data.sessions || [];
+                if (sessions.length === 0) {
+                    empty.textContent = 'No sessions yet. Run a comprehensive review to generate traces.';
+                    empty.style.display = 'block';
+                    list.style.display = 'none';
+                    return;
+                }
+                empty.style.display = 'none';
+                list.style.display = 'block';
+                list.innerHTML = sessions.map(s => `
+                    <div class="session-row" data-session-id="${s.session_id}">
+                        <div>
+                            <span class="session-id">${s.session_id}</span>
+                            <div class="session-meta">${s.start_time || ''} · ${s.span_count || 0} spans · ${s.status || ''}</div>
+                        </div>
+                    </div>
+                `).join('');
+                list.querySelectorAll('.session-row').forEach(row => {
+                    row.addEventListener('click', () => selectSession(row.dataset.sessionId));
+                });
+            } catch (e) {
+                empty.textContent = 'Error loading sessions: ' + e.message;
+                empty.style.display = 'block';
+                list.style.display = 'none';
+            }
+        }
+
+        async function selectSession(sessionId) {
+            document.querySelectorAll('.session-row').forEach(r => r.classList.remove('selected'));
+            const row = document.querySelector(`.session-row[data-session-id="${sessionId}"]`);
+            if (row) row.classList.add('selected');
+
+            const timelineSection = document.getElementById('timelineSection');
+            const timelineEmpty = document.getElementById('timelineEmpty');
+            const timelineContent = document.getElementById('timelineContent');
+            try {
+                const res = await fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`);
+                const session = await res.json();
+                if (!res.ok) {
+                    timelineContent.innerHTML = '<p class="empty-state">' + (session.error || 'Not found') + '</p>';
+                    timelineSection.style.display = 'block';
+                    timelineEmpty.style.display = 'none';
+                    return;
+                }
+                const spans = session.spans || [];
+                timelineContent.innerHTML = spans.map(span => {
+                    const kindClass = (span.kind || '').toLowerCase().replace('_', ' ');
+                    const meta = span.metadata || {};
+                    const metaStr = Object.keys(meta).length ? JSON.stringify(meta, null, 2) : '';
+                    const duration = span.duration_ms != null ? span.duration_ms.toFixed(0) + ' ms' : '—';
+                    return `
+                        <div class="span-block ${span.kind || ''}">
+                            <div class="span-header">
+                                <span class="span-name">${span.name || span.span_id}</span>
+                                <span class="span-duration">${duration}</span>
+                            </div>
+                            <div class="span-meta">
+                                <span>Kind: ${span.kind || '—'}</span>
+                                ${span.error ? `<br><strong style="color:#c00;">Error: ${span.error}</strong>` : ''}
+                                ${metaStr ? `<pre>${metaStr.replace(/</g, '&lt;')}</pre>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                timelineSection.style.display = 'block';
+                timelineEmpty.style.display = 'none';
+            } catch (e) {
+                timelineContent.innerHTML = '<p class="empty-state">Error: ' + e.message + '</p>';
+                timelineSection.style.display = 'block';
+                timelineEmpty.style.display = 'none';
+            }
+        }
+
+        document.getElementById('refreshSessions').addEventListener('click', loadSessions);
+        loadSessions();
+    </script>
+</body>
+</html>
