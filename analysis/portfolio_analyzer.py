@@ -120,7 +120,8 @@ class PortfolioAnalyzer:
 
     def get_value_over_time(self, institution: str = None,
                            start_date: datetime = None,
-                           end_date: datetime = None) -> pd.DataFrame:
+                           end_date: datetime = None,
+                           monthly: bool = True) -> pd.DataFrame:
         """
         Get portfolio value trend over time.
 
@@ -128,11 +129,13 @@ class PortfolioAnalyzer:
             institution: Optional institution filter
             start_date: Optional start date filter
             end_date: Optional end date filter
+            monthly: If True, aggregates by month (default, recommended to avoid
+                    artificial dips when accounts have statements on different days)
 
         Returns:
             DataFrame with value trend data
         """
-        data = self.db.get_portfolio_value_trend(institution, start_date, end_date)
+        data = self.db.get_portfolio_value_trend(institution, start_date, end_date, monthly)
         df = pd.DataFrame(data)
 
         if not df.empty:

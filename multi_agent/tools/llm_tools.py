@@ -4,11 +4,32 @@ Supports Anthropic Claude and DeepSeek APIs.
 """
 
 import os
+import time
 import logging
 from typing import Dict, Any, Optional, List
 import json
 
 logger = logging.getLogger(__name__)
+
+
+def _record_llm_span(provider: str, model: str, prompt_preview: str, response_preview: str, duration_ms: float, error: Optional[str] = None) -> None:
+    """Record LLM call to observability if context is set."""
+    try:
+        from ..observability.hooks import record_llm_call, get_current_context
+        session_id, parent_span_id = get_current_context()
+        if session_id:
+            record_llm_call(
+                provider=provider,
+                model=model,
+                prompt_preview=prompt_preview,
+                response_preview=response_preview,
+                duration_ms=duration_ms,
+                session_id=session_id,
+                parent_span_id=parent_span_id,
+                error=error,
+            )
+    except Exception:
+        pass
 
 
 class LLMTools:
@@ -80,18 +101,31 @@ class LLMTools:
         if not self._llm_available:
             logger.warning("LLM not available - no API key configured")
             return None
-        
+
+        provider = "DeepSeek" if self.use_deepseek else "Anthropic"
+        model_name = self.model or "unknown"
+        prompt_preview = (prompt[:500] + "…") if len(prompt) > 500 else prompt
+        start = time.perf_counter()
+        err: Optional[str] = None
+        response_text: Optional[str] = None
         try:
             if self.use_deepseek:
-                return self._call_deepseek(prompt, system_prompt, temperature, max_tokens)
+                response_text = self._call_deepseek(prompt, system_prompt, temperature, max_tokens)
             elif self.use_anthropic:
-                return self._call_anthropic(prompt, system_prompt, temperature, max_tokens)
+                response_text = self._call_anthropic(prompt, system_prompt, temperature, max_tokens)
             else:
                 logger.warning("No LLM provider configured")
                 return None
         except Exception as e:
+            err = str(e)
             logger.error(f"Error calling LLM: {e}")
-            return None
+            raise
+        finally:
+            duration_ms = (time.perf_counter() - start) * 1000
+            response_preview = (response_text[:500] + "…") if response_text and len(response_text) > 500 else (response_text or "")
+            _record_llm_span(provider, model_name, prompt_preview, response_preview, duration_ms, error=err)
+
+        return response_text
     
     def _call_deepseek(self, prompt: str, system_prompt: Optional[str],
                       temperature: float, max_tokens: int) -> str:

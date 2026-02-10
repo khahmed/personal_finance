@@ -388,13 +388,364 @@ table tr:hover {
     margin-right: 8px;
 }
 
+/* ==================== Multi-Agent Styles ==================== */
+
+.mode-selector {
+    grid-column: 1 / -1;
+    background: white;
+    padding: 15px 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.mode-btn {
+    padding: 12px 24px;
+    border: 2px solid #e0e0e0;
+    background: white;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    color: #666;
+}
+
+.mode-btn:hover {
+    border-color: #667eea;
+    transform: translateY(-2px);
+}
+
+.mode-btn.active {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
+}
+
+.query-mode {
+    display: none;
+}
+
+.query-mode.active {
+    display: block;
+}
+
+/* User Context Form */
+.user-context-section {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.user-context-section h3 {
+    color: #667eea;
+    margin-bottom: 15px;
+}
+
+.context-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.form-group input,
+.form-group select {
+    padding: 10px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.3s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+/* Agent Analysis Options */
+.agent-options-section {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.agent-options-section h3 {
+    color: #667eea;
+    margin-bottom: 15px;
+}
+
+.analysis-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.analysis-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px;
+    background: white;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.analysis-btn:hover {
+    border-color: #667eea;
+    transform: translateY(-4px);
+    box-shadow: 0 6px 12px rgba(102, 126, 234, 0.2);
+}
+
+.analysis-icon {
+    font-size: 36px;
+    line-height: 1;
+}
+
+.analysis-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    text-align: center;
+}
+
+.analysis-desc {
+    font-size: 12px;
+    color: #666;
+    text-align: center;
+}
+
+/* Agent Query Section */
+.agent-query-section {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.agent-query-section h3 {
+    color: #667eea;
+    margin-bottom: 15px;
+}
+
+#agentQueryInput {
+    width: 100%;
+    padding: 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 16px;
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.3s;
+    margin-bottom: 10px;
+}
+
+#agentQueryInput:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+/* Agent Results */
+.agent-results-section {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.agent-results h3 {
+    color: #667eea;
+    margin-bottom: 20px;
+    font-size: 1.5em;
+}
+
+.result-card {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border-left: 4px solid #667eea;
+}
+
+.result-card h4 {
+    color: #667eea;
+    margin-bottom: 15px;
+    font-size: 1.2em;
+}
+
+.result-card h5 {
+    color: #764ba2;
+    margin: 15px 0 10px;
+    font-size: 1em;
+}
+
+/* Summary Grid */
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.summary-item {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.summary-label {
+    display: block;
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.summary-value {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+    color: #667eea;
+}
+
+.summary-section {
+    grid-column: 1 / -1;
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.summary-section ul {
+    list-style: none;
+    padding: 0;
+}
+
+.summary-section li {
+    padding: 5px 0;
+    color: #333;
+}
+
+/* Analysis Section */
+.analysis-section {
+    margin-bottom: 20px;
+}
+
+.analysis-section p {
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.analysis-section strong {
+    color: #667eea;
+}
+
+/* Recommendations */
+.recommendations-section {
+    margin-top: 20px;
+}
+
+.recommendations-section h5 {
+    color: #764ba2;
+    margin-bottom: 10px;
+}
+
+.recommendations-section ul {
+    list-style: none;
+    padding: 0;
+}
+
+.recommendations-section li {
+    background: white;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    border-left: 3px solid #667eea;
+}
+
+.recommendations-section li strong {
+    color: #667eea;
+}
+
+.recommendations-section li em {
+    display: block;
+    margin-top: 5px;
+    color: #666;
+    font-size: 14px;
+}
+
+/* LLM Insights */
+.llm-insights-section {
+    background: #f0f4ff;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #764ba2;
+    margin-top: 20px;
+}
+
+.llm-insights-section h5 {
+    color: #764ba2;
+    margin-bottom: 10px;
+}
+
+.llm-insights-section p {
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.llm-insights-section ul {
+    list-style: none;
+    padding: 0;
+}
+
+.llm-insights-section li {
+    padding: 8px 0;
+    color: #333;
+}
+
 @media (max-width: 1024px) {
     .container {
         grid-template-columns: 1fr;
     }
-    
+
     .sidebar {
         order: -1;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .analysis-buttons {
+        grid-template-columns: 1fr;
     }
 }
 

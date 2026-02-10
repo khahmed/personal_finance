@@ -12,9 +12,18 @@
         <header>
             <h1>📊 Portfolio Analysis Query Interface</h1>
             <p class="subtitle">Ask questions about your portfolio in natural language</p>
+            <p><a href="/monitor" style="font-size: 14px;">🔭 Multi-Agent Monitor</a></p>
         </header>
 
+        <!-- Mode Selector -->
+        <div class="mode-selector">
+            <button class="mode-btn active" data-mode="sql">SQL Queries</button>
+            <button class="mode-btn" data-mode="agent">Multi-Agent Analysis</button>
+        </div>
+
         <div class="main-content">
+            <!-- SQL Query Mode -->
+            <div id="sqlMode" class="query-mode active">
             <div class="query-section">
                 <div class="input-group">
                     <textarea 
@@ -101,6 +110,139 @@
                         <button id="copyCodeBtn" class="btn btn-small">Copy Code</button>
                         <button id="addToFileBtn" class="btn btn-small btn-primary">Add to portfolio_analyzer.py</button>
                     </div>
+                </div>
+            </div>
+            </div>
+
+            <!-- Multi-Agent Mode -->
+            <div id="agentMode" class="query-mode" style="display: none;">
+                <!-- User Context Form -->
+                <div class="user-context-section">
+                    <h3>User Context</h3>
+                    <div class="context-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="taxRate">Tax Rate (%)</label>
+                                <input type="number" id="taxRate" value="30" min="0" max="100" step="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="province">Province</label>
+                                <select id="province">
+                                    <option value="ON">Ontario</option>
+                                    <option value="BC">British Columbia</option>
+                                    <option value="AB">Alberta</option>
+                                    <option value="QC">Quebec</option>
+                                    <option value="MB">Manitoba</option>
+                                    <option value="SK">Saskatchewan</option>
+                                    <option value="NS">Nova Scotia</option>
+                                    <option value="NB">New Brunswick</option>
+                                    <option value="PE">Prince Edward Island</option>
+                                    <option value="NL">Newfoundland and Labrador</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="age">Age (optional)</label>
+                                <input type="number" id="age" placeholder="e.g., 55" min="18" max="120">
+                            </div>
+                            <div class="form-group">
+                                <label for="riskProfile">Risk Profile</label>
+                                <select id="riskProfile">
+                                    <option value="conservative">Conservative</option>
+                                    <option value="moderate" selected>Moderate</option>
+                                    <option value="aggressive">Aggressive</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agent Analysis Options -->
+                <div class="agent-options-section">
+                    <h3>Analysis Type</h3>
+                    <div class="analysis-buttons">
+                        <button class="analysis-btn" data-analysis="comprehensive">
+                            <span class="analysis-icon">📋</span>
+                            <span class="analysis-name">Comprehensive Review</span>
+                            <span class="analysis-desc">Tax + Estate + Investment</span>
+                        </button>
+                        <button class="analysis-btn" data-analysis="tax">
+                            <span class="analysis-icon">💰</span>
+                            <span class="analysis-name">Tax Analysis</span>
+                            <span class="analysis-desc">Optimization & Tax-Loss Harvesting</span>
+                        </button>
+                        <button class="analysis-btn" data-analysis="estate">
+                            <span class="analysis-icon">🏛️</span>
+                            <span class="analysis-name">Estate Planning</span>
+                            <span class="analysis-desc">Products & Structure</span>
+                        </button>
+                        <button class="analysis-btn" data-analysis="investment">
+                            <span class="analysis-icon">📈</span>
+                            <span class="analysis-name">Investment Analysis</span>
+                            <span class="analysis-desc">Securities & Rebalancing</span>
+                        </button>
+                        <button class="analysis-btn" data-analysis="portfolio-data">
+                            <span class="analysis-icon">📊</span>
+                            <span class="analysis-name">Portfolio Data</span>
+                            <span class="analysis-desc">Structured Data Access</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Agent Query Section (for natural language queries to agents) -->
+                <div class="agent-query-section">
+                    <h3>Natural Language Query to Agents</h3>
+                    <div class="input-group">
+                        <textarea
+                            id="agentQueryInput"
+                            placeholder="Ask a complex question... (e.g., 'What's the most tax-efficient way to withdraw $50,000?')"
+                            rows="3"
+                        ></textarea>
+                        <button id="executeAgentQueryBtn" class="btn btn-primary">Process with Agents</button>
+                    </div>
+                </div>
+
+                <!-- Agent Results Display -->
+                <div class="agent-results-section">
+                    <div id="agentLoadingIndicator" class="loading" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Agents are analyzing...</p>
+                    </div>
+
+                    <div id="agentErrorMessage" class="error-message" style="display: none;"></div>
+
+                    <!-- Comprehensive Review Results -->
+                    <div id="comprehensiveResults" class="agent-results" style="display: none;">
+                        <h3>Comprehensive Financial Review</h3>
+
+                        <!-- Portfolio Summary Card -->
+                        <div class="result-card">
+                            <h4>📊 Portfolio Summary</h4>
+                            <div id="portfolioSummaryContent"></div>
+                        </div>
+
+                        <!-- Tax Analysis Card -->
+                        <div class="result-card">
+                            <h4>💰 Tax Optimization Analysis</h4>
+                            <div id="taxAnalysisContent"></div>
+                        </div>
+
+                        <!-- Estate Planning Card -->
+                        <div class="result-card">
+                            <h4>🏛️ Estate Planning Analysis</h4>
+                            <div id="estateAnalysisContent"></div>
+                        </div>
+
+                        <!-- Investment Analysis Card -->
+                        <div class="result-card">
+                            <h4>📈 Investment Analysis</h4>
+                            <div id="investmentAnalysisContent"></div>
+                        </div>
+                    </div>
+
+                    <!-- Individual Analysis Results -->
+                    <div id="individualResults" class="agent-results" style="display: none;"></div>
                 </div>
             </div>
         </div>

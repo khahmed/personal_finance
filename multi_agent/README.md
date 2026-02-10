@@ -22,10 +22,21 @@ multi_agent/
 │   ├── messages.py
 │   ├── agent_outputs.py
 │   └── workflow_state.py
+├── observability/      # Observability hooks and collector
+│   ├── events.py       # Span/event types
+│   ├── collector.py    # In-memory session/span store
+│   ├── hooks.py        # start_span, end_span, record_llm_call, etc.
+│   └── README.md       # Monitor usage and OpenTelemetry/Langfuse extension
 ├── sub_agents/         # Specialized sub-agents
 └── config/             # Configuration files
     └── agent_config.yaml
 ```
+
+### Observability
+
+- **Web monitor**: Open `/monitor` in the web app to view recent sessions and a timeline of agent steps and LLM calls.
+- **API**: `GET /api/observability/sessions`, `GET /api/observability/sessions/<id>`.
+- **Extension**: See [observability/README.md](observability/README.md) for OpenTelemetry or Langfuse integration.
 
 ## Quick Start
 

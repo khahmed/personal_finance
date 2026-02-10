@@ -3,6 +3,10 @@ Configuration file for portfolio management system.
 """
 
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Database configuration
 DB_CONFIG = {

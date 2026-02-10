@@ -404,9 +404,26 @@ class DatabaseManager:
 
     def get_portfolio_value_trend(self, institution: str = None,
                                  start_date: datetime = None,
-                                 end_date: datetime = None) -> List[Dict]:
-        """Get portfolio value over time."""
-        query = "SELECT * FROM v_portfolio_value_trend WHERE 1=1"
+                                 end_date: datetime = None,
+                                 monthly: bool = True) -> List[Dict]:
+        """
+        Get portfolio value over time.
+
+        Args:
+            institution: Optional institution filter
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+            monthly: If True, aggregates by month (recommended to avoid dips
+                    when accounts have statements on different days).
+                    If False, returns exact statement dates.
+
+        Returns:
+            List of dictionaries with portfolio value data
+        """
+        # Use monthly view by default to avoid artificial dips from
+        # multiple statements on different days in the same month
+        view_name = "v_portfolio_value_trend_monthly" if monthly else "v_portfolio_value_trend"
+        query = f"SELECT * FROM {view_name} WHERE 1=1"
         params = []
 
         if institution:

@@ -12,5 +12,22 @@ numpy==1.26.2
 matplotlib==3.8.2
 seaborn==0.13.0
 
+# Web Framework
+flask==3.0.0
+flask-cors==4.0.0
+
+# LLM Integration (optional - install one or both)
+openai>=1.0.0  # Required for DeepSeek API (uses OpenAI-compatible interface)
+anthropic>=0.75.0
+
 # Utilities
 python-dateutil==2.8.2
+setuptools>=65.0.0,<81.0.0  # Required for pkg_resources (used by CrewAI), <81 to avoid deprecation warnings
+
+# Multi-Agent Framework
+crewai==0.28.8
+pydantic==2.5.0
+langchain>=0.1.10,<0.2.0  # Compatible with crewai 0.28.8
+langchain-openai>=0.0.2  # Optional - only if using OpenAI
+langchain-community>=0.0.10
+langchain-anthropic>=0.1.0  # For Anthropic Claude support

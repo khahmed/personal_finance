@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadExamples();
     loadSchema();
     setupEventListeners();
+    setupMultiAgentListeners();
 });
 
 async function checkServerHealth() {
@@ -795,5 +796,419 @@ async function copyToClipboard(text) {
         console.error('Failed to copy:', error);
         alert('Failed to copy to clipboard');
     }
+}
+
+// ==================== Multi-Agent Functionality ====================
+
+function setupMultiAgentListeners() {
+    // Mode selector buttons
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.dataset.mode;
+            switchMode(mode);
+        });
+    });
+
+    // Analysis type buttons
+    document.querySelectorAll('.analysis-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const analysisType = btn.dataset.analysis;
+            executeAnalysis(analysisType);
+        });
+    });
+
+    // Agent query button
+    const executeAgentQueryBtn = document.getElementById('executeAgentQueryBtn');
+    if (executeAgentQueryBtn) {
+        executeAgentQueryBtn.addEventListener('click', executeAgentQuery);
+    }
+}
+
+function switchMode(mode) {
+    // Update button states
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+
+    // Show/hide mode sections
+    const sqlMode = document.getElementById('sqlMode');
+    const agentMode = document.getElementById('agentMode');
+
+    if (mode === 'sql') {
+        sqlMode.style.display = 'block';
+        agentMode.style.display = 'none';
+    } else {
+        sqlMode.style.display = 'none';
+        agentMode.style.display = 'block';
+    }
+}
+
+function getUserContext() {
+    const taxRate = parseFloat(document.getElementById('taxRate').value) / 100;
+    const province = document.getElementById('province').value;
+    const age = document.getElementById('age').value;
+    const riskProfile = document.getElementById('riskProfile').value;
+
+    const context = {
+        tax_rate: taxRate,
+        province: province,
+        risk_profile: riskProfile
+    };
+
+    if (age) {
+        context.age = parseInt(age);
+    }
+
+    return context;
+}
+
+async function executeAnalysis(analysisType) {
+    const userContext = getUserContext();
+    const agentLoadingIndicator = document.getElementById('agentLoadingIndicator');
+    const agentErrorMessage = document.getElementById('agentErrorMessage');
+    const comprehensiveResults = document.getElementById('comprehensiveResults');
+    const individualResults = document.getElementById('individualResults');
+
+    // Hide previous results
+    agentErrorMessage.style.display = 'none';
+    comprehensiveResults.style.display = 'none';
+    individualResults.style.display = 'none';
+
+    // Show loading
+    agentLoadingIndicator.style.display = 'block';
+
+    try {
+        let endpoint, responseData;
+
+        switch (analysisType) {
+            case 'comprehensive':
+                endpoint = `${API_BASE}/v2/comprehensive-review`;
+                responseData = await fetchJSON(endpoint, { user_context: userContext });
+                displayComprehensiveResults(responseData);
+                break;
+
+            case 'tax':
+                endpoint = `${API_BASE}/v2/tax-analysis`;
+                responseData = await fetchJSON(endpoint, { user_context: userContext });
+                displayIndividualAnalysis('Tax Analysis', responseData, '💰');
+                break;
+
+            case 'estate':
+                endpoint = `${API_BASE}/v2/estate-analysis`;
+                responseData = await fetchJSON(endpoint, { user_context: userContext });
+                displayIndividualAnalysis('Estate Planning', responseData, '🏛️');
+                break;
+
+            case 'investment':
+                endpoint = `${API_BASE}/v2/investment-analysis`;
+                responseData = await fetchJSON(endpoint, { user_context: userContext });
+                displayIndividualAnalysis('Investment Analysis', responseData, '📈');
+                break;
+
+            case 'portfolio-data':
+                endpoint = `${API_BASE}/v2/portfolio-data`;
+                responseData = await fetchJSON(endpoint, null, 'GET');
+                displayIndividualAnalysis('Portfolio Data', responseData, '📊');
+                break;
+
+            default:
+                throw new Error('Unknown analysis type');
+        }
+
+    } catch (error) {
+        console.error('Analysis error:', error);
+        agentErrorMessage.textContent = `Error: ${error.message}`;
+        agentErrorMessage.style.display = 'block';
+    } finally {
+        agentLoadingIndicator.style.display = 'none';
+    }
+}
+
+async function executeAgentQuery() {
+    const agentQueryInput = document.getElementById('agentQueryInput');
+    const query = agentQueryInput.value.trim();
+
+    if (!query) {
+        alert('Please enter a query');
+        return;
+    }
+
+    const userContext = getUserContext();
+    const agentLoadingIndicator = document.getElementById('agentLoadingIndicator');
+    const agentErrorMessage = document.getElementById('agentErrorMessage');
+    const comprehensiveResults = document.getElementById('comprehensiveResults');
+    const individualResults = document.getElementById('individualResults');
+
+    // Hide previous results
+    agentErrorMessage.style.display = 'none';
+    comprehensiveResults.style.display = 'none';
+    individualResults.style.display = 'none';
+
+    // Show loading
+    agentLoadingIndicator.style.display = 'block';
+
+    try {
+        const endpoint = `${API_BASE}/v2/agent-query`;
+        const responseData = await fetchJSON(endpoint, {
+            query: query,
+            user_context: userContext,
+            workflow_type: 'sequential'
+        });
+
+        displayComprehensiveResults(responseData);
+
+    } catch (error) {
+        console.error('Agent query error:', error);
+        agentErrorMessage.textContent = `Error: ${error.message}`;
+        agentErrorMessage.style.display = 'block';
+    } finally {
+        agentLoadingIndicator.style.display = 'none';
+    }
+}
+
+async function fetchJSON(url, body = null, method = 'POST') {
+    const options = {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    };
+
+    if (body && method === 'POST') {
+        options.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Request failed');
+    }
+
+    return await response.json();
+}
+
+function displayComprehensiveResults(data) {
+    const comprehensiveResults = document.getElementById('comprehensiveResults');
+
+    // Portfolio Summary
+    if (data.portfolio_data) {
+        const content = document.getElementById('portfolioSummaryContent');
+        content.innerHTML = formatPortfolioSummary(data.portfolio_data);
+    }
+
+    // Tax Analysis
+    if (data.tax_analysis) {
+        const content = document.getElementById('taxAnalysisContent');
+        content.innerHTML = formatTaxAnalysis(data.tax_analysis);
+    }
+
+    // Estate Analysis
+    if (data.estate_analysis) {
+        const content = document.getElementById('estateAnalysisContent');
+        content.innerHTML = formatEstateAnalysis(data.estate_analysis);
+    }
+
+    // Investment Analysis
+    if (data.investment_analysis) {
+        const content = document.getElementById('investmentAnalysisContent');
+        content.innerHTML = formatInvestmentAnalysis(data.investment_analysis);
+    }
+
+    comprehensiveResults.style.display = 'block';
+}
+
+function displayIndividualAnalysis(title, data, icon) {
+    const individualResults = document.getElementById('individualResults');
+
+    let html = `<h3>${icon} ${title}</h3>`;
+    html += '<div class="result-card">';
+
+    if (title === 'Tax Analysis') {
+        html += formatTaxAnalysis(data);
+    } else if (title === 'Estate Planning') {
+        html += formatEstateAnalysis(data);
+    } else if (title === 'Investment Analysis') {
+        html += formatInvestmentAnalysis(data);
+    } else if (title === 'Portfolio Data') {
+        html += formatPortfolioSummary(data);
+    }
+
+    html += '</div>';
+
+    individualResults.innerHTML = html;
+    individualResults.style.display = 'block';
+}
+
+function formatPortfolioSummary(data) {
+    let html = '<div class="summary-grid">';
+
+    if (data.portfolio_summary) {
+        const summary = data.portfolio_summary;
+        html += `
+            <div class="summary-item">
+                <span class="summary-label">Total Value:</span>
+                <span class="summary-value">$${formatNumber(summary.total_value)}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Accounts:</span>
+                <span class="summary-value">${summary.num_accounts}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Securities:</span>
+                <span class="summary-value">${summary.num_securities}</span>
+            </div>
+        `;
+
+        if (summary.by_asset_category) {
+            html += '<div class="summary-section"><h5>Asset Allocation</h5><ul>';
+            for (const [category, value] of Object.entries(summary.by_asset_category)) {
+                html += `<li>${category}: $${formatNumber(value)}</li>`;
+            }
+            html += '</ul></div>';
+        }
+    }
+
+    html += '</div>';
+    return html;
+}
+
+function formatTaxAnalysis(data) {
+    let html = '';
+
+    if (data.tax_optimization_report) {
+        const report = data.tax_optimization_report;
+        html += '<div class="analysis-section">';
+        html += `<p><strong>Total Unrealized Gains:</strong> $${formatNumber(report.total_unrealized_gains)}</p>`;
+        html += `<p><strong>Total Unrealized Losses:</strong> $${formatNumber(report.total_unrealized_losses)}</p>`;
+        html += `<p><strong>Estimated Tax Liability:</strong> $${formatNumber(report.estimated_tax_liability)}</p>`;
+        html += `<p><strong>Potential Tax Savings:</strong> $${formatNumber(report.potential_tax_savings)}</p>`;
+        html += '</div>';
+    }
+
+    if (data.recommendations && data.recommendations.length > 0) {
+        html += '<div class="recommendations-section"><h5>Recommendations</h5><ul>';
+        data.recommendations.forEach(rec => {
+            html += `<li><strong>${rec.priority}:</strong> ${rec.action}`;
+            if (rec.timing) html += ` (${rec.timing})`;
+            if (rec.tax_impact) html += ` - Tax Impact: $${formatNumber(rec.tax_impact)}`;
+            html += '</li>';
+        });
+        html += '</ul></div>';
+    }
+
+    if (data.llm_insights) {
+        html += formatLLMInsights(data.llm_insights);
+    }
+
+    return html;
+}
+
+function formatEstateAnalysis(data) {
+    let html = '';
+
+    if (data.estate_planning_report) {
+        const report = data.estate_planning_report;
+        html += '<div class="analysis-section">';
+        html += `<p><strong>Total Estate Value:</strong> $${formatNumber(report.total_estate_value)}</p>`;
+        html += `<p><strong>Estimated Probate Fees:</strong> $${formatNumber(report.estimated_probate_fees)}</p>`;
+        html += `<p><strong>Accounts with Beneficiaries:</strong> ${report.accounts_with_beneficiaries}</p>`;
+        html += `<p><strong>Accounts without Beneficiaries:</strong> ${report.accounts_without_beneficiaries}</p>`;
+        html += '</div>';
+    }
+
+    if (data.recommendations && data.recommendations.length > 0) {
+        html += '<div class="recommendations-section"><h5>Recommendations</h5><ul>';
+        data.recommendations.forEach(rec => {
+            html += `<li><strong>${rec.priority}:</strong> ${rec.action}`;
+            if (rec.rationale) html += `<br><em>${rec.rationale}</em>`;
+            html += '</li>';
+        });
+        html += '</ul></div>';
+    }
+
+    if (data.product_recommendations && data.product_recommendations.length > 0) {
+        html += '<div class="recommendations-section"><h5>Product Recommendations</h5><ul>';
+        data.product_recommendations.forEach(prod => {
+            html += `<li><strong>${prod.product_type}</strong> (${prod.allocation_percentage}% allocation)`;
+            if (prod.rationale) html += `<br><em>${prod.rationale}</em>`;
+            html += '</li>';
+        });
+        html += '</ul></div>';
+    }
+
+    if (data.llm_insights) {
+        html += formatLLMInsights(data.llm_insights);
+    }
+
+    return html;
+}
+
+function formatInvestmentAnalysis(data) {
+    let html = '';
+
+    if (data.investment_analysis_report) {
+        const report = data.investment_analysis_report;
+        html += '<div class="analysis-section">';
+        html += `<p><strong>Portfolio Health Score:</strong> ${report.portfolio_health_score}/10</p>`;
+        html += `<p><strong>Concentration Risk Level:</strong> ${report.concentration_risk_level}</p>`;
+        html += `<p><strong>Rebalancing Urgency:</strong> ${report.rebalancing_urgency}</p>`;
+        html += '</div>';
+    }
+
+    if (data.security_recommendations && data.security_recommendations.length > 0) {
+        html += '<div class="recommendations-section"><h5>Security Recommendations</h5><ul>';
+        data.security_recommendations.slice(0, 10).forEach(rec => {
+            html += `<li><strong>${rec.security_name || rec.symbol}:</strong> ${rec.recommendation}`;
+            if (rec.rationale) html += `<br><em>${rec.rationale}</em>`;
+            html += '</li>';
+        });
+        html += '</ul></div>';
+    }
+
+    if (data.rebalancing_plan && data.rebalancing_plan.length > 0) {
+        html += '<div class="recommendations-section"><h5>Rebalancing Plan</h5><ul>';
+        data.rebalancing_plan.forEach(action => {
+            html += `<li><strong>${action.action}:</strong> ${action.security}`;
+            if (action.quantity) html += ` (${action.quantity} shares)`;
+            if (action.reason) html += `<br><em>${action.reason}</em>`;
+            html += '</li>';
+        });
+        html += '</ul></div>';
+    }
+
+    if (data.llm_insights) {
+        html += formatLLMInsights(data.llm_insights);
+    }
+
+    return html;
+}
+
+function formatLLMInsights(insights) {
+    let html = '<div class="llm-insights-section">';
+    html += `<h5>AI Analysis <span style="font-size: 0.8em; color: #666;">(${insights.llm_provider})</span></h5>`;
+
+    if (insights.explanation) {
+        html += `<p>${insights.explanation}</p>`;
+    }
+
+    if (insights.recommendations && insights.recommendations.length > 0) {
+        html += '<ul>';
+        insights.recommendations.forEach(rec => {
+            html += `<li><strong>${rec.priority}:</strong> ${rec.action}`;
+            if (rec.rationale) html += `<br><em>${rec.rationale}</em>`;
+            if (rec.impact) html += `<br>Impact: ${rec.impact}`;
+            html += '</li>';
+        });
+        html += '</ul>';
+    }
+
+    html += '</div>';
+    return html;
+}
+
+function formatNumber(value) {
+    if (typeof value !== 'number') return value;
+    return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
