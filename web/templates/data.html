@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Management – Portfolio</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .data-page .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .data-page .card h2 { margin-bottom: 12px; color: #667eea; font-size: 1.25em; }
+        .data-page .form-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 12px; }
+        .data-page .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .data-page .form-group label { font-weight: 600; font-size: 14px; }
+        .data-page .form-group input, .data-page .form-group select { padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 14px; }
+        .data-page .output-box { margin-top: 16px; max-height: 320px; overflow: auto; background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+        .data-page .output-box.empty { color: #888; }
+        .data-page .summary-box { margin-top: 12px; padding: 12px; background: #f0f4ff; border-radius: 8px; font-size: 14px; }
+        .data-page .summary-box table { width: 100%; border-collapse: collapse; }
+        .data-page .summary-box th, .data-page .summary-box td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e0e0e0; }
+        .data-page .btn-run { padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .data-page .btn-run:hover { background: #5568d3; }
+        .data-page .btn-run:disabled { opacity: 0.6; cursor: not-allowed; }
+        .data-page .danger .btn-run { background: #c53030; }
+        .data-page .danger .btn-run:hover { background: #9b2222; }
+        .data-page .checkbox-group { display: flex; align-items: center; gap: 8px; }
+        .data-page .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; }
+        .data-page .nav-link { font-size: 14px; color: #667eea; text-decoration: none; }
+        .data-page .nav-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body class="data-page">
+    <div class="container">
+        <header>
+            <h1>📁 Data Management</h1>
+            <p class="subtitle">Generate synthetic data, load statements from PDFs, generate reports, or reset the database.</p>
+            <p><a href="/" class="nav-link">← Back to Portfolio Query</a> &nbsp;|&nbsp; <a href="/monitor" class="nav-link">Multi-Agent Monitor</a></p>
+        </header>
+
+        <div class="card">
+            <h2>🧪 Generate synthetic data</h2>
+            <p style="margin-bottom: 12px; color: #666;">Populate the database with demo portfolio data (accounts, holdings, statements over time).</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="syn-months">Months of history</label>
+                    <input type="number" id="syn-months" value="24" min="1" max="120">
+                </div>
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="syn-reset">
+                    <label for="syn-reset">Reset database before generating (deletes all data)</label>
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn-run" id="btn-synthetic">Generate synthetic data</button>
+                </div>
+            </div>
+            <div id="syn-summary" class="summary-box" style="display: none;"></div>
+            <div id="syn-output" class="output-box empty">Output will appear here.</div>
+        </div>
+
+        <div class="card">
+            <h2>📄 Process statements (PDFs)</h2>
+            <p style="margin-bottom: 12px; color: #666;">Scan a directory for PDF statements and load them into the database using configured parsers.</p>
+            <div class="form-row">
+                <div class="form-group" style="flex: 1; min-width: 200px;">
+                    <label for="statements-dir">Statements directory</label>
+                    <input type="text" id="statements-dir" placeholder="statements" value="statements">
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn-run" id="btn-process">Process statements</button>
+                </div>
+            </div>
+            <div id="process-summary" class="summary-box" style="display: none;"></div>
+            <div id="process-output" class="output-box empty">Output will appear here.</div>
+        </div>
+
+        <div class="card">
+            <h2>📊 Generate reports</h2>
+            <p style="margin-bottom: 12px; color: #666;">Create portfolio dashboard and charts in an output directory.</p>
+            <div class="form-row">
+                <div class="form-group" style="flex: 1; min-width: 200px;">
+                    <label for="output-dir">Output directory</label>
+                    <input type="text" id="output-dir" placeholder="reports" value="reports">
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn-run" id="btn-reports">Generate reports</button>
+                </div>
+            </div>
+            <div id="reports-summary" class="summary-box" style="display: none;"></div>
+            <div id="reports-output" class="output-box empty">Output will appear here.</div>
+        </div>
+
+        <div class="card danger">
+            <h2>🗑️ Reset database</h2>
+            <p style="margin-bottom: 12px; color: #666;">Clear data tables only (keeps institutions/accounts/securities) or reset everything. Requires confirmation below.</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="reset-type">Reset type</label>
+                    <select id="reset-type">
+                        <option value="data">Data only (statements, holdings, cash)</option>
+                        <option value="all">All tables (full wipe)</option>
+                    </select>
+                </div>
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="reset-confirm">
+                    <label for="reset-confirm">I confirm I want to reset</label>
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn-run" id="btn-reset">Reset database</button>
+                </div>
+            </div>
+            <div id="reset-summary" class="summary-box" style="display: none;"></div>
+            <div id="reset-output" class="output-box empty">Output will appear here.</div>
+        </div>
+    </div>
+
+    <script>
+        function setOutput(elt, lines, isEmpty) {
+            elt.textContent = lines && lines.length ? lines.join('\n') : (isEmpty ? 'Output will appear here.' : '');
+            elt.classList.toggle('empty', !lines || !lines.length);
+        }
+        function setSummary(elt, html, show) {
+            elt.innerHTML = html || '';
+            elt.style.display = show ? 'block' : 'none';
+        }
+        function setRunning(btn, running) {
+            btn.disabled = running;
+            btn.textContent = running ? 'Running…' : btn.dataset.label;
+        }
+
+        document.getElementById('btn-synthetic').dataset.label = 'Generate synthetic data';
+        document.getElementById('btn-synthetic').addEventListener('click', async function () {
+            const btn = this;
+            const out = document.getElementById('syn-output');
+            const sum = document.getElementById('syn-summary');
+            const reset = document.getElementById('syn-reset').checked;
+            const months = parseInt(document.getElementById('syn-months').value, 10) || 24;
+            setOutput(out, null, true);
+            setSummary(sum, '', false);
+            setRunning(btn, true);
+            try {
+                const res = await fetch('/api/data/generate-synthetic', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reset, months, confirm_reset: true })
+                });
+                const data = await res.json();
+                setOutput(out, data.log_lines || [], false);
+                if (data.success && data.summary) {
+                    let html = '<strong>Summary</strong><br>Accounts: ' + (data.summary.total_accounts ?? '') + ', Statements: ' + (data.summary.total_statements ?? '') + ', Holdings: ' + (data.summary.total_holdings ?? '');
+                    if (data.summary.portfolio_summary && data.summary.portfolio_summary.length) {
+                        html += '<br><br><table><tr><th>Institution</th><th>Accounts</th><th>Total value</th></tr>';
+                        data.summary.portfolio_summary.forEach(function (r) {
+                            html += '<tr><td>' + (r.institution_name || '') + '</td><td>' + (r.num_accounts || '') + '</td><td>$' + (r.total_value != null ? Number(r.total_value).toLocaleString('en-CA', { minimumFractionDigits: 2 }) : '') + '</td></tr>';
+                        });
+                        html += '</table>';
+                    }
+                    setSummary(sum, html, true);
+                }
+                if (!data.success) setSummary(sum, '<span style="color:#c53030">' + (data.error || 'Failed') + '</span>', true);
+            } catch (e) {
+                setOutput(out, ['Request failed: ' + e.message], false);
+            }
+            setRunning(btn, false);
+        });
+
+        document.getElementById('btn-process').dataset.label = 'Process statements';
+        document.getElementById('btn-process').addEventListener('click', async function () {
+            const btn = this;
+            const out = document.getElementById('process-output');
+            const sum = document.getElementById('process-summary');
+            const statementsDir = document.getElementById('statements-dir').value.trim() || 'statements';
+            setOutput(out, null, true);
+            setSummary(sum, '', false);
+            setRunning(btn, true);
+            try {
+                const res = await fetch('/api/data/process-statements', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ statements_dir: statementsDir })
+                });
+                const data = await res.json();
+                setOutput(out, data.log_lines || [], false);
+                if (data.success && data.summary) {
+                    const s = data.summary;
+                    setSummary(sum, '<strong>Summary</strong><br>Total: ' + (s.total ?? 0) + ', Successful: ' + (s.successful ?? 0) + ', Failed: ' + (s.failed ?? 0) + (s.failed_files && s.failed_files.length ? '<br>Failed files: ' + s.failed_files.join(', ') : ''), true);
+                } else if (data.error) setSummary(sum, '<span style="color:#c53030">' + data.error + '</span>', true);
+            } catch (e) {
+                setOutput(out, ['Request failed: ' + e.message], false);
+            }
+            setRunning(btn, false);
+        });
+
+        document.getElementById('btn-reports').dataset.label = 'Generate reports';
+        document.getElementById('btn-reports').addEventListener('click', async function () {
+            const btn = this;
+            const out = document.getElementById('reports-output');
+            const sum = document.getElementById('reports-summary');
+            const outputDir = document.getElementById('output-dir').value.trim() || 'reports';
+            setOutput(out, null, true);
+            setSummary(sum, '', false);
+            setRunning(btn, true);
+            try {
+                const res = await fetch('/api/data/generate-reports', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ output_dir: outputDir })
+                });
+                const data = await res.json();
+                setOutput(out, data.log_lines || [], false);
+                if (data.success && data.summary) setSummary(sum, 'Reports written to <strong>' + (data.summary.output_dir || outputDir) + '</strong>', true);
+                if (!data.success && data.error) setSummary(sum, '<span style="color:#c53030">' + data.error + '</span>', true);
+            } catch (e) {
+                setOutput(out, ['Request failed: ' + e.message], false);
+            }
+            setRunning(btn, false);
+        });
+
+        document.getElementById('btn-reset').dataset.label = 'Reset database';
+        document.getElementById('btn-reset').addEventListener('click', async function () {
+            const btn = this;
+            const out = document.getElementById('reset-output');
+            const sum = document.getElementById('reset-summary');
+            const resetType = document.getElementById('reset-type').value;
+            const confirm = document.getElementById('reset-confirm').checked;
+            if (!confirm) {
+                setSummary(sum, '<span style="color:#c53030">Please check "I confirm I want to reset" to proceed.</span>', true);
+                return;
+            }
+            setOutput(out, null, true);
+            setSummary(sum, '', false);
+            setRunning(btn, true);
+            try {
+                const res = await fetch('/api/data/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reset_type: resetType, confirm: true })
+                });
+                const data = await res.json();
+                setOutput(out, data.log_lines || [], false);
+                if (data.success && data.summary) setSummary(sum, 'Reset completed: ' + (data.summary.reset_type || resetType), true);
+                else if (data.cancelled) setSummary(sum, 'Reset was cancelled.', true);
+                else if (data.error) setSummary(sum, '<span style="color:#c53030">' + data.error + '</span>', true);
+            } catch (e) {
+                setOutput(out, ['Request failed: ' + e.message], false);
+            }
+            setRunning(btn, false);
+        });
+    </script>
+</body>
+</html>
