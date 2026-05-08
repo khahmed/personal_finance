@@ -11,6 +11,7 @@ Personal Banking Portfolio Management System - A Python application that parses 
 ### Core Components
 
 **1. Parser System (Dynamic & AI-Assisted)**
+
 - `parsers/base_parser.py` - Abstract base class with common utilities (clean_currency_value, parse_date, classify_security)
 - Institution-specific parsers inherit from BaseStatementParser and implement parse(), extract_account_info(), extract_holdings()
 - `parser_loader.py` - Dynamic parser loading system based on institutions.yaml configuration
@@ -34,6 +35,11 @@ Personal Banking Portfolio Management System - A Python application that parses 
 
 **5. Main Processing Script**
 - `process_statements.py` - CLI for processing PDFs, generating reports, resetting database
+
+**6. Multi-Agent Financial Advisory System** (`multi_agent/`)
+- CrewAI-based system that runs tax, estate, and investment analysis agents over portfolio data
+- Self-evolving at runtime: agent prompts and business rules are stored in the database and updated by `MetaEvolutionAgent` based on LLM critique of each run's outputs
+- See [Multi-Agent Architecture](#multi-agent-architecture) section below for details
 
 ## Development Commands
 
@@ -277,6 +283,132 @@ reports/                      # Generated reports (gitignored)
 - `.env` - Database credentials and API keys (gitignored)
 - `institutions.yaml` - Parser configuration (pattern matching)
 - `requirements.txt` - Python dependencies
+
+---
+
+## Multi-Agent Architecture
+
+### Directory layout
+
+```
+multi_agent/
+├── agents/
+│   ├── base_agent.py              # BaseAgent – loads config from DB at init
+│   ├── portfolio_data_agent.py    # Retrieves and aggregates portfolio data
+│   ├── tax_advisor_agent.py       # Tax optimization analysis
+│   ├── estate_planner_agent.py    # Estate planning analysis
+│   ├── investment_analyst_agent.py # Investment analysis and rebalancing
+│   └── meta_evolution_agent.py    # ← NEW: evaluates outputs, evolves configs
+├── config/
+│   ├── agent_config.yaml          # Static YAML (legacy, superseded by DB)
+│   └── agent_config_store.py      # ← NEW: DB-backed config store (singleton)
+├── flows/
+│   ├── workflow_orchestrator.py   # Coordinates agent execution + evolution step
+│   └── financial_advisory_flow.py # High-level entry point
+├── tools/
+│   ├── database_tools.py          # Portfolio DB queries
+│   ├── analysis_tools.py          # Calculation helpers
+│   └── llm_tools.py               # DeepSeek / Anthropic wrappers
+├── schemas/
+│   ├── agent_outputs.py           # Pydantic output models
+│   └── workflow_state.py          # WorkflowState, UserContext
+├── observability/                 # Session/span tracking
+└── main.py                        # CLI entry point
+```
+
+### Self-evolution design
+
+Each agent loads its `role`, `goal`, `backstory`, `system_prompts`, and
+`business_rules` from the `agent_configs` database table at **init time**,
+falling back to hardcoded constructor defaults if the DB is unavailable.
+
+After every workflow run, `MetaEvolutionAgent.evaluate_and_evolve()` is called
+as a post-workflow step. It:
+
+1. Logs each agent's output summary + user feedback to `agent_interactions`.
+2. Once the interaction count threshold is met, asks the LLM to critique the
+   outputs against the user context and propose specific improvements.
+3. For proposals above the confidence threshold (default 0.7), writes a new
+   versioned config row to `agent_configs` (old version deactivated).
+4. The next workflow run automatically picks up the evolved config.
+
+```
+Run N → agents load config vX from DB
+      → analysis executes
+      → MetaEvolutionAgent critiques outputs
+      → writes vX+1 to agent_configs (if confidence ≥ threshold)
+
+Run N+1 → agents load config vX+1 from DB  ← evolved
+```
+
+### Database tables (agent evolution)
+
+Schema lives in `database/schema.sql` alongside the portfolio tables (one file initializes the entire database):
+
+| Table | Purpose |
+|---|---|
+| `agent_configs` | Versioned agent configurations. `is_active=TRUE` row is loaded at runtime. |
+| `agent_interactions` | Per-session output summaries + user feedback for evolution decisions. |
+
+### Business rules pattern
+
+Each domain agent defines `_DEFAULT_RULES` as a module-level dict with all
+threshold values. At init, these are merged with whatever the DB provides:
+
+```python
+self.business_rules = {**_DEFAULT_RULES, **self.business_rules}
+```
+
+Agents then read thresholds through `self._rule("key")` instead of magic
+numbers, making them evolvable without code changes.
+
+| Agent | Key evolvable rules |
+|---|---|
+| TaxAdvisorAgent | `inclusion_rate`, `default_tax_rate`, `min_loss_threshold` |
+| EstatePlannerAgent | `equity_threshold_pct`, `fixed_income_threshold_pct`, `equity_etf_allocation_pct` |
+| InvestmentAnalystAgent | `overweight_threshold_pct`, `target_allocation_pct`, `health_score_base` |
+| MetaEvolutionAgent | `min_interactions_before_evolution`, `min_confidence_to_evolve` |
+
+### CLI usage
+
+```bash
+# Standard run (evolution enabled)
+venv/bin/python -m multi_agent.main
+
+# Disable evolution (faster, no DB writes)
+venv/bin/python -m multi_agent.main --no-evolution
+
+# Pass explicit feedback that informs evolution
+venv/bin/python -m multi_agent.main --feedback accepted
+
+# Parallel workflow
+venv/bin/python -m multi_agent.main --parallel
+
+# Show config version history for all agents
+venv/bin/python -m multi_agent.main --history
+
+# Roll back TaxAdvisorAgent to version 1
+venv/bin/python -m multi_agent.main --rollback TaxAdvisorAgent --version 1
+```
+
+### Setting up the evolution tables
+
+The `agent_configs` and `agent_interactions` tables are created and seeded by
+`database/schema.sql` (a single file now initializes both the portfolio tables
+and the multi-agent evolution tables). They are also auto-created by
+`AgentConfigStore._ensure_tables()` on first use, so manual SQL is only needed
+for fresh database setup or bulk inspection.
+
+### Rollback and safety
+
+- Configs are **append-only**: every evolution creates a new row, old rows are
+  never deleted.
+- `MetaEvolutionAgent.rollback_agent(agent_name, version)` reactivates any
+  prior version.
+- The `--history` CLI flag lists all versions with timestamps and reasons.
+- Evolution only runs when an LLM API key is available; if no key is set the
+  step is silently skipped and the hardcoded defaults remain in effect.
+- `MetaEvolutionAgent` is excluded from its own evolution loop.
 
 ## Python Virtual Environment
 

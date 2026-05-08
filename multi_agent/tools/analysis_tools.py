@@ -94,8 +94,12 @@ class AnalysisTools:
         return metrics
     
     @staticmethod
-    def identify_tax_loss_harvesting(holdings: List[Dict[str, Any]],
-                                    min_loss: float = 100.0) -> List[Dict[str, Any]]:
+    def identify_tax_loss_harvesting(
+        holdings: List[Dict[str, Any]],
+        min_loss: float = 100.0,
+        inclusion_rate: float = 0.5,
+        tax_rate: float = 0.30,
+    ) -> List[Dict[str, Any]]:
         """
         Identify tax loss harvesting opportunities.
         
@@ -126,8 +130,7 @@ class AnalysisTools:
             if book_value > market_value and book_value > 0:  # Unrealized loss
                 loss = book_value - market_value
                 if loss >= min_loss:
-                    # Estimate tax benefit (50% inclusion, assume 30% tax rate)
-                    tax_benefit = loss * 0.5 * 0.30
+                    tax_benefit = loss * inclusion_rate * tax_rate
                     
                     opportunities.append({
                         "security": holding.get('security_name') or 'Unknown',

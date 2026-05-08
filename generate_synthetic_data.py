@@ -397,6 +397,9 @@ class SyntheticDataGenerator:
 
         Args:
             months: Number of months to generate (default 24 = 2 years)
+
+        Returns:
+            Dict with total_accounts, total_statements, total_holdings.
         """
         logger.info(f"Generating synthetic data for {len(ACCOUNT_CONFIGS)} accounts over {months} months")
 
@@ -436,6 +439,11 @@ class SyntheticDataGenerator:
                     logger.error(f"Error saving statement: {e}")
                     raise
 
+        summary = {
+            "total_accounts": len(ACCOUNT_CONFIGS),
+            "total_statements": total_statements,
+            "total_holdings": total_holdings,
+        }
         logger.info("=" * 70)
         logger.info("Synthetic data generation complete!")
         logger.info(f"  Total accounts: {len(ACCOUNT_CONFIGS)}")
@@ -445,6 +453,8 @@ class SyntheticDataGenerator:
 
         # Print portfolio summary
         self.print_summary()
+
+        return summary
 
     def print_summary(self):
         """Print summary statistics of generated data."""
@@ -482,6 +492,84 @@ class SyntheticDataGenerator:
 
         except Exception as e:
             logger.error(f"Error generating summary: {e}")
+
+    def get_portfolio_summary_rows(self):
+        """
+        Return portfolio summary (latest statement) as list of dicts for API use.
+
+        Returns:
+            List of dicts with institution_name, num_accounts, total_value.
+        """
+        try:
+            query = """
+                SELECT
+                    i.institution_name,
+                    COUNT(DISTINCT a.account_id) as num_accounts,
+                    SUM(s.total_value) as total_value
+                FROM statements s
+                JOIN accounts a ON s.account_id = a.account_id
+                JOIN institutions i ON a.institution_id = i.institution_id
+                WHERE s.statement_date = (SELECT MAX(statement_date) FROM statements)
+                GROUP BY i.institution_name
+                ORDER BY total_value DESC
+            """
+            results = self.db.execute_query(query, fetch=True)
+            if not results:
+                return []
+            return [
+                {
+                    "institution_name": row["institution_name"],
+                    "num_accounts": int(row["num_accounts"]),
+                    "total_value": float(row["total_value"]),
+                }
+                for row in results
+            ]
+        except Exception:
+            return []
+
+
+# ============================================================================
+# PROGRAMMATIC ENTRY POINT (for web UI or other callers)
+# ============================================================================
+
+def run_synthetic_generation(
+    db_config: dict,
+    reset: bool = False,
+    months: int = 24,
+    confirm_reset: bool = True,
+):
+    """
+    Generate synthetic data programmatically. Used by the web UI.
+
+    Args:
+        db_config: Database configuration (e.g. from config.DB_CONFIG).
+        reset: If True, reset all tables before generating (requires confirm_reset).
+        months: Number of months of historical data to generate.
+        confirm_reset: If True and reset=True, perform reset without prompting.
+
+    Returns:
+        Dict with keys: success (bool), summary (dict with total_accounts, total_statements,
+        total_holdings, portfolio_summary), error (str, only if success is False).
+    """
+    try:
+        db = DatabaseManager(db_config)
+        if reset and confirm_reset:
+            db.reset_all_tables(confirm=True)
+            logger.info("Database reset complete")
+        generator = SyntheticDataGenerator(db)
+        summary = generator.generate_all_data(months=months)
+        portfolio_summary = generator.get_portfolio_summary_rows()
+        db.close_all_connections()
+        return {
+            "success": True,
+            "summary": {
+                **summary,
+                "portfolio_summary": portfolio_summary,
+            },
+        }
+    except Exception as e:
+        logger.exception("Synthetic data generation failed")
+        return {"success": False, "summary": None, "error": str(e)}
 
 
 # ============================================================================

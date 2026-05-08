@@ -192,8 +192,9 @@ class LLMTools:
             logger.error(f"Anthropic API error: {e}")
             raise
     
-    def generate_recommendations(self, context: Dict[str, Any], 
-                                 recommendation_type: str = "general") -> List[Dict[str, Any]]:
+    def generate_recommendations(self, context: Dict[str, Any],
+                                 recommendation_type: str = "general",
+                                 system_prompt_override: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Generate recommendations using LLM based on context.
         
@@ -224,8 +225,8 @@ class LLMTools:
             comprehensive financial recommendations. Be specific and actionable."""
         }
         
-        system_prompt = system_prompts.get(recommendation_type, system_prompts["general"])
-        
+        system_prompt = system_prompt_override or system_prompts.get(recommendation_type, system_prompts["general"])
+
         prompt = f"""Analyze the following portfolio data and provide recommendations:
 
 {json.dumps(context, indent=2)}

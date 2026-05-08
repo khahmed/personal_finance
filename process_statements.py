@@ -122,6 +122,10 @@ def process_all_statements(statements_dir: str, db_config: dict):
     Args:
         statements_dir: Directory containing statements
         db_config: Database configuration dictionary
+
+    Returns:
+        Summary dict with keys: total, successful, failed, failed_files (list of paths),
+        or None if no PDF files found.
     """
     logger.info(f"Starting to process statements from {statements_dir}")
 
@@ -135,18 +139,20 @@ def process_all_statements(statements_dir: str, db_config: dict):
 
     if not pdf_files:
         logger.warning("No PDF files found!")
-        return
+        db_manager.close_all_connections()
+        return None
 
     # Process each file
     successful = 0
-    failed = 0
+    failed_files = []
 
     for pdf_file in pdf_files:
         if process_pdf_file(pdf_file, db_manager, parser_loader):
             successful += 1
         else:
-            failed += 1
+            failed_files.append(pdf_file)
 
+    failed = len(failed_files)
     # Summary
     logger.info("=" * 80)
     logger.info("PROCESSING SUMMARY")
@@ -158,6 +164,12 @@ def process_all_statements(statements_dir: str, db_config: dict):
 
     # Close database connections
     db_manager.close_all_connections()
+    return {
+        "total": len(pdf_files),
+        "successful": successful,
+        "failed": failed,
+        "failed_files": failed_files,
+    }
 
 
 def generate_reports(db_config: dict, output_dir: str = 'reports'):
@@ -167,6 +179,9 @@ def generate_reports(db_config: dict, output_dir: str = 'reports'):
     Args:
         db_config: Database configuration dictionary
         output_dir: Directory to save reports
+
+    Returns:
+        Summary dict with keys: output_dir, success.
     """
     logger.info("Generating portfolio reports...")
 
@@ -185,15 +200,20 @@ def generate_reports(db_config: dict, output_dir: str = 'reports'):
 
     # Close database connections
     db_manager.close_all_connections()
+    return {"output_dir": output_dir, "success": True}
 
 
-def reset_database(db_config: dict, reset_type: str = 'data'):
+def reset_database(db_config: dict, reset_type: str = 'data', confirm: bool = False):
     """
     Reset database tables.
 
     Args:
         db_config: Database configuration dictionary
         reset_type: 'data' to reset only data tables, 'all' to reset everything
+        confirm: If True, skip interactive prompt and perform reset. If False, prompt via input().
+
+    Returns:
+        Summary dict with keys: done, reset_type, cancelled (if user did not confirm).
     """
     db_manager = DatabaseManager(db_config)
 
@@ -201,25 +221,30 @@ def reset_database(db_config: dict, reset_type: str = 'data'):
         logger.warning("=" * 80)
         logger.warning("WARNING: This will delete ALL data including reference tables!")
         logger.warning("=" * 80)
-        response = input("Are you sure you want to reset ALL tables? Type 'yes' to confirm: ")
-        if response.lower() == 'yes':
-            db_manager.reset_all_tables(confirm=True)
-            logger.info("All tables have been reset")
-        else:
-            logger.info("Reset cancelled")
+        if not confirm:
+            response = input("Are you sure you want to reset ALL tables? Type 'yes' to confirm: ")
+            if response.lower() != 'yes':
+                logger.info("Reset cancelled")
+                db_manager.close_all_connections()
+                return {"done": False, "reset_type": reset_type, "cancelled": True}
+        db_manager.reset_all_tables(confirm=True)
+        logger.info("All tables have been reset")
     else:
         logger.warning("=" * 80)
         logger.warning("This will delete statements, holdings, and cash balances")
         logger.warning("Reference data (institutions, accounts, securities, asset_types) will be preserved")
         logger.warning("=" * 80)
-        response = input("Are you sure you want to reset data tables? Type 'yes' to confirm: ")
-        if response.lower() == 'yes':
-            db_manager.reset_data_tables(confirm=True)
-            logger.info("Data tables have been reset")
-        else:
-            logger.info("Reset cancelled")
+        if not confirm:
+            response = input("Are you sure you want to reset data tables? Type 'yes' to confirm: ")
+            if response.lower() != 'yes':
+                logger.info("Reset cancelled")
+                db_manager.close_all_connections()
+                return {"done": False, "reset_type": reset_type, "cancelled": True}
+        db_manager.reset_data_tables(confirm=True)
+        logger.info("Data tables have been reset")
 
     db_manager.close_all_connections()
+    return {"done": True, "reset_type": reset_type}
 
 
 def main():

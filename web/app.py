@@ -15,7 +15,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.db_manager import DatabaseManager
-from config import DB_CONFIG
+from config import DB_CONFIG, STATEMENTS_DIR, REPORTS_DIR, LOG_FORMAT
 
 # Import web modules (use relative imports when running as module)
 try:
@@ -83,6 +83,12 @@ def handle_exception(e):
 def index():
     """Render the main page."""
     return render_template('index.html')
+
+
+@app.route('/data')
+def data_page():
+    """Render the Data Management page (synthetic data, process statements, reset)."""
+    return render_template('data.html')
 
 
 @app.route('/api/health', methods=['GET'])
@@ -359,6 +365,205 @@ def get_examples():
         }
     ]
     return jsonify({'examples': examples})
+
+
+# ==================== Log capture for data operations ====================
+
+class ListLogHandler(logging.Handler):
+    """Capture log records into a list of formatted strings."""
+
+    def __init__(self, log_list):
+        super().__init__()
+        self.log_list = log_list
+
+    def emit(self, record):
+        try:
+            self.log_list.append(self.format(record))
+        except Exception:
+            pass
+
+
+def capture_logs(loggers, callback):
+    """
+    Run callback while capturing log output from the given loggers.
+    Returns (result_from_callback, list of formatted log lines).
+    """
+    log_list = []
+    handler = ListLogHandler(log_list)
+    handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    for log in loggers:
+        log.addHandler(handler)
+    try:
+        result = callback()
+        return result, log_list
+    finally:
+        for log in loggers:
+            log.removeHandler(handler)
+
+
+# ==================== Data Management API (synthetic data, process statements, reset) ====================
+
+@app.route('/api/data/generate-synthetic', methods=['POST'])
+def api_generate_synthetic():
+    """
+    Generate synthetic portfolio data.
+
+    Request body: { "reset": bool, "months": int, "confirm_reset": bool }
+    """
+    try:
+        data = request.get_json() or {}
+        reset = data.get('reset', False)
+        months = max(1, min(int(data.get('months', 24)), 120))
+        confirm_reset = data.get('confirm_reset', True)
+
+        import generate_synthetic_data as gen_mod
+        log_list = []
+
+        def run():
+            handler = ListLogHandler(log_list)
+            handler.setFormatter(logging.Formatter(LOG_FORMAT))
+            gen_mod.logger.addHandler(handler)
+            try:
+                return gen_mod.run_synthetic_generation(
+                    DB_CONFIG, reset=reset, months=months, confirm_reset=confirm_reset
+                )
+            finally:
+                gen_mod.logger.removeHandler(handler)
+
+        result = run()
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'summary': result['summary'],
+                'log_lines': log_list,
+            })
+        return jsonify({
+            'success': False,
+            'error': result.get('error', 'Unknown error'),
+            'log_lines': log_list,
+        }), 500
+    except Exception as e:
+        logger.exception("Generate synthetic failed")
+        return jsonify({'success': False, 'error': str(e), 'log_lines': []}), 500
+
+
+@app.route('/api/data/process-statements', methods=['POST'])
+def api_process_statements():
+    """
+    Process PDF statements from a directory.
+
+    Request body: { "statements_dir": str (optional) }
+    """
+    try:
+        import process_statements as ps_mod
+        data = request.get_json() or {}
+        statements_dir = data.get('statements_dir') or STATEMENTS_DIR
+        log_list = []
+
+        def run():
+            handler = ListLogHandler(log_list)
+            handler.setFormatter(logging.Formatter(LOG_FORMAT))
+            ps_mod.logger.addHandler(handler)
+            try:
+                return ps_mod.process_all_statements(statements_dir, DB_CONFIG)
+            finally:
+                ps_mod.logger.removeHandler(handler)
+
+        handler = ListLogHandler(log_list)
+        handler.setFormatter(logging.Formatter(LOG_FORMAT))
+        ps_mod.logger.addHandler(handler)
+        try:
+            summary = ps_mod.process_all_statements(statements_dir, DB_CONFIG)
+        finally:
+            ps_mod.logger.removeHandler(handler)
+
+        if summary is None:
+            return jsonify({
+                'success': False,
+                'error': 'No PDF files found in directory',
+                'summary': None,
+                'log_lines': log_list,
+            }), 400
+        return jsonify({
+            'success': True,
+            'summary': summary,
+            'log_lines': log_list,
+        })
+    except Exception as e:
+        logger.exception("Process statements failed")
+        return jsonify({'success': False, 'error': str(e), 'log_lines': []}), 500
+
+
+@app.route('/api/data/generate-reports', methods=['POST'])
+def api_generate_reports():
+    """
+    Generate portfolio reports and charts.
+
+    Request body: { "output_dir": str (optional) }
+    """
+    try:
+        import process_statements as ps_mod
+        data = request.get_json() or {}
+        output_dir = data.get('output_dir') or REPORTS_DIR
+        log_list = []
+
+        handler = ListLogHandler(log_list)
+        handler.setFormatter(logging.Formatter(LOG_FORMAT))
+        ps_mod.logger.addHandler(handler)
+        try:
+            summary = ps_mod.generate_reports(DB_CONFIG, output_dir)
+        finally:
+            ps_mod.logger.removeHandler(handler)
+
+        return jsonify({
+            'success': True,
+            'summary': summary,
+            'log_lines': log_list,
+        })
+    except Exception as e:
+        logger.exception("Generate reports failed")
+        return jsonify({'success': False, 'error': str(e), 'log_lines': []}), 500
+
+
+@app.route('/api/data/reset', methods=['POST'])
+def api_reset_database():
+    """
+    Reset database tables (data only or all).
+
+    Request body: { "reset_type": "data"|"all", "confirm": bool }
+    """
+    try:
+        import process_statements as ps_mod
+        data = request.get_json() or {}
+        reset_type = data.get('reset_type', 'data')
+        if reset_type not in ('data', 'all'):
+            return jsonify({'error': 'reset_type must be "data" or "all"'}), 400
+        confirm = data.get('confirm', False)
+        log_list = []
+
+        handler = ListLogHandler(log_list)
+        handler.setFormatter(logging.Formatter(LOG_FORMAT))
+        ps_mod.logger.addHandler(handler)
+        try:
+            result = ps_mod.reset_database(DB_CONFIG, reset_type, confirm=confirm)
+        finally:
+            ps_mod.logger.removeHandler(handler)
+
+        if result.get('cancelled'):
+            return jsonify({
+                'success': False,
+                'cancelled': True,
+                'summary': result,
+                'log_lines': log_list,
+            }), 400
+        return jsonify({
+            'success': True,
+            'summary': result,
+            'log_lines': log_list,
+        })
+    except Exception as e:
+        logger.exception("Reset database failed")
+        return jsonify({'success': False, 'error': str(e), 'log_lines': []}), 500
 
 
 # ==================== Multi-Agent API Endpoints ====================

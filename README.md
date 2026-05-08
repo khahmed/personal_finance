@@ -44,6 +44,8 @@ A comprehensive system for parsing financial statements, storing holdings data i
   - Code generation for reusable analysis methods
   - Safe query execution (SELECT only)
 
+- **Multi-Agent Financial Advisory**: Self-evolving CrewAI agents for tax, estate, and investment analysis (see `multi_agent/README.md`).
+
 ## Quick Start
 
 ### 1. Install PostgreSQL and Create Database
@@ -53,7 +55,10 @@ A comprehensive system for parsing financial statements, storing holdings data i
 sudo apt-get update
 sudo apt-get install postgresql postgresql-contrib
 
-# Create database
+# Option A: Use the setup script (creates database, schema, and .env)
+./setup_database.sh
+
+# Option B: Manual setup
 sudo -u postgres psql
 CREATE DATABASE portfolio_db;
 CREATE USER your_username WITH PASSWORD 'your_password';
@@ -99,6 +104,8 @@ OPENAI_API_KEY=your-key-here       # Alternative for web interface
 
 ### 4. Initialize Database Schema
 
+If you skipped `setup_database.sh`, initialize the schema manually:
+
 ```bash
 psql -U your_username -d portfolio_db -f database/schema.sql
 ```
@@ -119,6 +126,14 @@ python process_statements.py report
 # Or do both
 python process_statements.py all
 ```
+
+Reports are saved in `reports/` and include:
+- Asset allocation pie chart
+- Portfolio value trend chart
+- Allocation evolution over time
+- Top holdings chart
+- Returns analysis
+- Summary text report
 
 ### 6. Launch Web Interface (Optional)
 
@@ -157,6 +172,7 @@ personal_finance/
 │   ├── nl_to_sql.py           # Natural language queries
 │   ├── code_generator.py      # Python code generation
 │   └── templates/             # HTML templates
+├── multi_agent/                # Multi-agent advisory system
 ├── reports/                    # Generated reports (auto-created)
 ├── process_statements.py       # Main CLI script
 ├── parser_loader.py           # Dynamic parser loading
@@ -216,32 +232,88 @@ from visualization import PortfolioVisualizer
 import config
 
 # Initialize components
-db_manager = DatabaseManager(config.DB_CONFIG)
-analyzer = PortfolioAnalyzer(db_manager)
+db = DatabaseManager(config.DB_CONFIG)
+analyzer = PortfolioAnalyzer(db)
 visualizer = PortfolioVisualizer(analyzer)
 
 # Get portfolio summary
 summary = analyzer.get_portfolio_summary()
 print(f"Total Value: ${summary['total_value']:,.2f}")
+print(f"Accounts: {summary['num_accounts']}")
+print(f"Securities: {summary['num_securities']}")
 
 # Get current holdings
 holdings = analyzer.get_holdings_by_account()
+print(holdings[['institution_name', 'account_number', 'security_name',
+                'quantity', 'market_value']])
+
+# Get allocation
+allocation = analyzer.get_current_allocation()
+print(allocation.groupby('asset_category')['total_value'].sum())
+
+# Get top holdings
+top = analyzer.get_top_holdings(10)
+print(top[['security_name', 'market_value', 'portfolio_pct']])
+
+# Analyze concentration
+risk = analyzer.get_concentration_risk()
+print(f"Top 5 Holdings Concentration: {risk['top5_concentration']:.1f}%")
 
 # Generate charts
-visualizer.plot_asset_allocation('allocation.png')
+visualizer.plot_asset_allocation('my_allocation.png')
+visualizer.plot_value_trend('my_trend.png')
 
 # Close connections
-db_manager.close_all_connections()
+db.close_all_connections()
+```
+
+### Direct Database Queries
+
+You can also query the database directly:
+
+```bash
+psql -U your_username -d portfolio_db
+```
+
+Useful queries:
+
+```sql
+-- Get latest total value by institution
+SELECT
+    i.institution_name,
+    SUM(h.market_value) as total_value
+FROM holdings h
+JOIN accounts a ON h.account_id = a.account_id
+JOIN institutions i ON a.institution_id = i.institution_id
+JOIN statements s ON h.statement_id = s.statement_id
+WHERE s.statement_date = (
+    SELECT MAX(statement_date) FROM statements WHERE account_id = a.account_id
+)
+GROUP BY i.institution_name;
+
+-- Get all holdings for a specific account
+SELECT * FROM v_latest_holdings
+WHERE account_number = '01749108553433';
+
+-- Get portfolio value over time
+SELECT * FROM v_portfolio_value_trend
+ORDER BY statement_date;
+
+-- See which statements have been processed
+SELECT * FROM statements ORDER BY processed_at DESC;
 ```
 
 ## AI Parser Generation
 
-Generate parsers for new institutions automatically using AI agents.
+Generate parsers for new institutions automatically using AI agents — typically 5 minutes from sample PDFs to working parser.
 
-### Setup
+### Setup (One-time)
 
 ```bash
-# Install CrewAI dependencies
+# Option A: Use setup script
+./setup_parser_generator.sh
+
+# Option B: Manual install
 venv/bin/pip install crewai crewai-tools anthropic pyyaml
 
 # Set API key
@@ -253,11 +325,11 @@ echo "ANTHROPIC_API_KEY=your-api-key-here" >> .env
 ### Generate a Parser
 
 ```bash
-# 1. Organize statements
+# 1. Organize statements (use 3-5 sample PDFs from different months)
 mkdir statements/TD
 cp /path/to/td-statements/*.pdf statements/TD/
 
-# 2. Generate parser (analyzes PDFs and creates code)
+# 2. Generate parser (takes 2-5 minutes; analyzes PDFs and creates code)
 venv/bin/python parser_generator/agent.py TD
 
 # 3. Review generated code
@@ -344,9 +416,17 @@ institutions:
 - Time: 5-10 minutes per institution
 - Requires: Sample PDFs, API key
 
+### Tips
+
+1. **Use 3-5 sample PDFs** from different months for better parser quality
+2. **Check generated code** before using in production
+3. **Test with all statement types** (RRSP, TFSA, Non-Registered)
+4. **Edit if needed** — generated parsers are a starting point
+5. **Version control** — commit successful parsers to git
+
 ## Web Query Interface
 
-Natural language interface for querying your portfolio.
+Natural language interface for querying your portfolio. See `web/README.md` for full details.
 
 ### Launch Web App
 
@@ -391,7 +471,7 @@ Without an API key, the system uses rule-based SQL generation (less accurate).
 
 ### API Endpoints
 
-**POST `/api/query`** - Execute natural language query
+**POST `/api/query`** — Execute natural language query
 ```json
 {
   "query": "Show me my top holdings",
@@ -399,18 +479,9 @@ Without an API key, the system uses rule-based SQL generation (less accurate).
 }
 ```
 
-**POST `/api/generate_code`** - Generate Python code for SQL
-**GET `/api/schema`** - Get database schema
-**GET `/api/examples`** - Get example queries
-
-### Web Interface Features
-
-- Natural language to SQL conversion
-- Safe query execution (SELECT only)
-- Automatic code generation
-- Modern, responsive UI
-- Example queries included
-- Schema information display
+**POST `/api/generate_code`** — Generate Python code for SQL
+**GET `/api/schema`** — Get database schema
+**GET `/api/examples`** — Get example queries
 
 ## Database Schema
 
@@ -426,9 +497,9 @@ Main tables:
 - **account_performance**: Performance metrics
 
 Database views for analysis:
-- `v_latest_holdings` - Current holdings with full details
-- `v_portfolio_allocation` - Allocation by asset category
-- `v_portfolio_value_trend` - Value over time
+- `v_latest_holdings` — Current holdings with full details
+- `v_portfolio_allocation` — Allocation by asset category
+- `v_portfolio_value_trend` — Value over time
 
 ## Analysis Features
 
@@ -481,6 +552,9 @@ psql -U your_username -d portfolio_db -c "SELECT version();"
 
 # Check if database exists
 psql -U your_username -l
+
+# Test with credentials from .env
+psql -U your_username -d portfolio_db -c "SELECT COUNT(*) FROM institutions;"
 ```
 
 ### Missing Dependencies
@@ -492,20 +566,7 @@ pip install -r requirements.txt --upgrade
 
 ### Web Interface Issues
 
-**Port already in use?**
-```python
-# Edit web/app.py
-app.run(debug=True, host='0.0.0.0', port=5001)  # Change port
-```
-
-**Database connection error?**
-```bash
-# Set environment variables
-export DB_HOST=localhost
-export DB_NAME=portfolio_db
-export DB_USER=your_user
-export DB_PASSWORD=your_password
-```
+See `web/README.md` for web-specific troubleshooting (port conflicts, CORS, API errors).
 
 ### Parser Generator Issues
 
@@ -546,16 +607,6 @@ pg_dump -U your_username portfolio_db > portfolio_backup.sql
 psql -U your_username -d portfolio_db < portfolio_backup.sql
 ```
 
-## Best Practices
-
-1. **Use 3-5 sample PDFs** when generating parsers
-2. **Review generated code** before production use
-3. **Test thoroughly** with all statement variations
-4. **Version control** - Commit parsers to git
-5. **Document changes** - If editing generated code, explain why
-6. **Regular backups** - Back up your database regularly
-7. **Keep statements organized** - One directory per institution
-
 ## Advanced Features
 
 ### Multiple Parsers per Institution
@@ -582,13 +633,22 @@ llm = ChatAnthropic(
 )
 ```
 
+## Related Documentation
+
+- `CLAUDE.md` — Guidance for AI coding agents working in this repo
+- `MULTI_AGENT_SPECIFICATION.md` — Multi-agent advisory system architecture
+- `multi_agent/README.md` — Multi-agent installation, setup, and troubleshooting
+- `web/README.md` — Web interface and natural language queries
+- `SYNTHETIC_DATA.md` — Generating synthetic portfolios for testing
+- `MONTHLY_AGGREGATION.md` — Monthly value aggregation feature
+
 ## Support
 
 For issues or questions:
-1. Check this README and CLAUDE.md
+1. Check this README and `CLAUDE.md`
 2. Review existing parsers in `parsers/` directory
-3. Check `web/TROUBLESHOOTING.md` for web interface issues
-4. Review agent prompts in `parser_generator/agent.py`
+3. Check `web/README.md` for web interface issues
+4. Check `multi_agent/README.md` for multi-agent issues
 5. Check CrewAI documentation: https://docs.crewai.com
 
 ## License

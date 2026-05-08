@@ -1,62 +1,106 @@
 """
 Database manager for portfolio holdings data.
 Handles all database operations including connections, inserts, and queries.
+
+This class supports both PostgreSQL and SQLite backends. The backend is
+selected via the ``type`` field in the db_config (\"postgres\" or \"sqlite\").
 """
 
-import psycopg2
-from psycopg2 import pool, extras
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import psycopg2
+from psycopg2 import extras, pool
+
+try:
+    import sqlite3  # Built-in; used when DB type is "sqlite"
+except ImportError:  # pragma: no cover - very unlikely in normal Python
+    sqlite3 = None  # type: ignore[assignment]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
-    """Manages database connections and operations."""
+    """Manages database connections and operations for PostgreSQL and SQLite."""
 
-    def __init__(self, db_config: Dict[str, str]):
+    def __init__(self, db_config: Dict[str, Any]):
         """
         Initialize database manager with configuration.
 
         Args:
-            db_config: Dictionary with keys: host, database, user, password, port
+            db_config: Dictionary with keys:
+                - For PostgreSQL (type == "postgres", default):
+                    host, database, user, password, port
+                - For SQLite (type == "sqlite"):
+                    database: path to .db file
         """
         self.db_config = db_config
-        self.connection_pool = None
+        self.db_type = (db_config.get("type") or "postgres").lower()
+
+        if self.db_type not in {"postgres", "sqlite"}:
+            raise ValueError(f"Unsupported db type: {self.db_type}")
+
+        self.connection_pool: Optional[pool.SimpleConnectionPool] = None
         self._init_connection_pool()
 
-    def _init_connection_pool(self):
-        """Initialize the database connection pool."""
-        try:
-            self.connection_pool = psycopg2.pool.SimpleConnectionPool(
-                minconn=1,
-                maxconn=10,
-                host=self.db_config['host'],
-                database=self.db_config['database'],
-                user=self.db_config['user'],
-                password=self.db_config['password'],
-                port=self.db_config.get('port', 5432)
+    def _init_connection_pool(self) -> None:
+        """Initialize the database connection / pool."""
+        if self.db_type == "postgres":
+            try:
+                self.connection_pool = psycopg2.pool.SimpleConnectionPool(
+                    minconn=1,
+                    maxconn=10,
+                    host=self.db_config["host"],
+                    database=self.db_config["database"],
+                    user=self.db_config["user"],
+                    password=self.db_config["password"],
+                    port=self.db_config.get("port", 5432),
+                )
+                logger.info("PostgreSQL connection pool created successfully")
+            except Exception as e:
+                logger.error(f"Error creating PostgreSQL connection pool: {e}")
+                raise
+        else:
+            if sqlite3 is None:
+                raise RuntimeError("sqlite3 module is not available")
+            # For SQLite we create connections on demand (lightweight) and
+            # close them after each query. No explicit pool is required.
+            logger.info(
+                "SQLite backend configured with database file: %s",
+                self.db_config["database"],
             )
-            logger.info("Database connection pool created successfully")
-        except Exception as e:
-            logger.error(f"Error creating connection pool: {e}")
-            raise
 
     def get_connection(self):
-        """Get a connection from the pool."""
-        return self.connection_pool.getconn()
+        """Get a DBAPI-compatible connection."""
+        if self.db_type == "postgres":
+            if not self.connection_pool:
+                raise RuntimeError("PostgreSQL connection pool is not initialized")
+            return self.connection_pool.getconn()
 
-    def release_connection(self, conn):
-        """Release a connection back to the pool."""
-        self.connection_pool.putconn(conn)
+        # SQLite: create a new connection per call
+        conn = sqlite3.connect(
+            self.db_config["database"],
+            detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
+        )
+        conn.row_factory = sqlite3.Row
+        return conn
 
-    def close_all_connections(self):
-        """Close all connections in the pool."""
-        if self.connection_pool:
+    def release_connection(self, conn) -> None:
+        """Release a connection back to the pool or close it for SQLite."""
+        if self.db_type == "postgres":
+            if self.connection_pool and conn:
+                self.connection_pool.putconn(conn)
+        else:
+            if conn:
+                conn.close()
+
+    def close_all_connections(self) -> None:
+        """Close all connections in the pool (Postgres only)."""
+        if self.db_type == "postgres" and self.connection_pool:
             self.connection_pool.closeall()
-            logger.info("All database connections closed")
+            logger.info("All PostgreSQL connections closed")
 
     def reset_data_tables(self, confirm: bool = False):
         """
@@ -134,28 +178,62 @@ class DatabaseManager:
             logger.error(f"Error resetting all tables: {e}")
             raise
 
-    def execute_query(self, query: str, params: Tuple = None, fetch: bool = False):
+    def _prepare_sqlite_query(self, query: str) -> str:
+        """
+        Adapt a PostgreSQL-style query for SQLite.
+
+        Currently this:
+        - Replaces %s placeholders with ? for sqlite3 parameter style.
+        """
+        # All parameter placeholders in this codebase are simple %s; this
+        # replacement is safe because the SQL is static and controlled.
+        return query.replace("%s", "?")
+
+    def execute_query(
+        self,
+        query: str,
+        params: Optional[Sequence[Any]] = None,
+        fetch: bool = False,
+    ):
         """
         Execute a SQL query.
 
         Args:
-            query: SQL query string
+            query: SQL query string (PostgreSQL-style, using %s placeholders)
             params: Query parameters
             fetch: Whether to fetch results
 
         Returns:
-            Query results if fetch=True, None otherwise
+            Query results (list of dicts) if fetch=True, None otherwise
         """
         conn = self.get_connection()
         cursor = None
+
         try:
-            cursor = conn.cursor(cursor_factory=extras.RealDictCursor)
-            cursor.execute(query, params)
+            if self.db_type == "postgres":
+                cursor = conn.cursor(cursor_factory=extras.RealDictCursor)
+                cursor.execute(query, params)
+            else:
+                # SQLite
+                sqlite_query = self._prepare_sqlite_query(query)
+                cursor = conn.cursor()
+                if params is not None:
+                    cursor.execute(sqlite_query, tuple(params))
+                else:
+                    cursor.execute(sqlite_query)
+
             conn.commit()
 
-            if fetch:
-                return cursor.fetchall()
-            return None
+            if not fetch:
+                return None
+
+            rows = cursor.fetchall()
+            if self.db_type == "postgres":
+                # RealDictCursor already returns dict-like rows
+                return list(rows)
+            else:
+                # sqlite3.Row -> dict
+                return [dict(row) for row in rows]
 
         except Exception as e:
             conn.rollback()
@@ -291,12 +369,24 @@ class DatabaseManager:
                            balance_date: datetime, cash_amount: float,
                            currency: str = 'CAD'):
         """Create a cash balance record."""
-        query = """
-            INSERT INTO cash_balances (statement_id, account_id, balance_date, cash_amount, currency)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT DO NOTHING
-        """
-        self.execute_query(query, (statement_id, account_id, balance_date, cash_amount, currency))
+        if self.db_type == "sqlite":
+            # SQLite does not support bare "ON CONFLICT DO NOTHING" in the same
+            # way as PostgreSQL. Use INSERT OR IGNORE instead.
+            query = """
+                INSERT OR IGNORE INTO cash_balances
+                    (statement_id, account_id, balance_date, cash_amount, currency)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+        else:
+            query = """
+                INSERT INTO cash_balances (statement_id, account_id, balance_date, cash_amount, currency)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT DO NOTHING
+            """
+        self.execute_query(
+            query,
+            (statement_id, account_id, balance_date, cash_amount, currency),
+        )
 
     def save_statement_data(self, statement_data: Dict):
         """

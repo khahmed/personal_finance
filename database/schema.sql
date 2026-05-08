@@ -247,3 +247,126 @@ INSERT INTO institutions (institution_name) VALUES
     ('ScotiaBank'),
     ('Olympia')
 ON CONFLICT (institution_name) DO NOTHING;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Multi-Agent Self-Evolution Schema
+-- Tables that back the self-evolving multi-agent system (multi_agent/).
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Versioned agent configurations. Each row is one immutable snapshot; only
+-- the row with is_active=TRUE for a given agent_name is loaded at runtime.
+CREATE TABLE IF NOT EXISTS agent_configs (
+    id              SERIAL PRIMARY KEY,
+    agent_name      VARCHAR(100) NOT NULL,
+    version         INTEGER NOT NULL DEFAULT 1,
+    is_active       BOOLEAN DEFAULT TRUE,
+
+    -- Prompt fields (evolve via MetaEvolutionAgent)
+    role            TEXT,
+    goal            TEXT,
+    backstory       TEXT,
+    system_prompts  TEXT DEFAULT '{}',   -- JSON stored as text for portability
+
+    -- Business rule thresholds (evolve via MetaEvolutionAgent)
+    business_rules  TEXT DEFAULT '{}',   -- JSON stored as text for portability
+
+    -- LLM settings
+    model           VARCHAR(100) DEFAULT 'deepseek-chat',
+    temperature     FLOAT DEFAULT 0.3,
+
+    -- Audit trail
+    evolution_reason TEXT,
+    parent_version   INTEGER,
+    created_at       TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(agent_name, version)
+);
+
+-- Per-session interaction log used by MetaEvolutionAgent to decide when/what to evolve
+CREATE TABLE IF NOT EXISTS agent_interactions (
+    id              SERIAL PRIMARY KEY,
+    session_id      VARCHAR(100),
+    agent_name      VARCHAR(100),
+    config_version  INTEGER DEFAULT 1,
+    user_feedback   VARCHAR(20),          -- 'accepted', 'rejected', 'modified', or NULL
+    output_summary  TEXT DEFAULT '{}',    -- JSON: key metrics from that run
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_configs_name_active ON agent_configs(agent_name, is_active);
+CREATE INDEX IF NOT EXISTS idx_agent_interactions_agent  ON agent_interactions(agent_name, created_at);
+CREATE INDEX IF NOT EXISTS idx_agent_interactions_session ON agent_interactions(session_id);
+
+-- ─── Seed default agent configurations ─────────────────────────────────────
+-- These mirror the hardcoded values in the Python agents so that version 1 in
+-- the DB is identical to what the code produced before this feature was added.
+
+INSERT INTO agent_configs (
+    agent_name, version, is_active, role, goal, backstory,
+    system_prompts, business_rules, model, temperature, evolution_reason
+) VALUES (
+    'PortfolioDataAgent', 1, TRUE,
+    'Data Specialist and Context Provider',
+    'Retrieve, aggregate, and provide accurate portfolio data to other agents',
+    'You are an expert data analyst specializing in financial portfolio data. You have deep knowledge of SQL and database systems. You ensure data accuracy and provide comprehensive portfolio context including holdings, allocation, and metrics. You always validate data before sharing it with other agents.',
+    '{"general": "You are a financial data specialist providing accurate portfolio data."}',
+    '{"max_holdings_per_request": 1000}',
+    'deepseek-chat', 0.1,
+    'Initial seed from hardcoded defaults'
+) ON CONFLICT (agent_name, version) DO NOTHING;
+
+INSERT INTO agent_configs (
+    agent_name, version, is_active, role, goal, backstory,
+    system_prompts, business_rules, model, temperature, evolution_reason
+) VALUES (
+    'TaxAdvisorAgent', 1, TRUE,
+    'Tax Optimization Specialist',
+    'Analyze portfolio for tax-efficient strategies and minimize tax liability',
+    'You are a Canadian tax expert specializing in investment tax optimization. You have deep knowledge of RRSP, TFSA, LIRA, and non-registered account tax treatment. You understand capital gains taxation, tax-loss harvesting, and withdrawal strategies. You always consider the client''s tax bracket and provincial tax rates in your recommendations.',
+    '{"tax": "You are a Canadian tax expert specializing in investment tax optimization. Analyze the portfolio data and provide tax optimization recommendations. Focus on capital gains, tax-loss harvesting, and account type optimization. Be specific and actionable.", "general": "You are a financial advisor."}',
+    '{"inclusion_rate": 0.5, "default_tax_rate": 0.30, "min_loss_threshold": 100.0, "max_tlh_recommendations": 10, "max_priority_recommendations": 5}',
+    'deepseek-chat', 0.2,
+    'Initial seed from hardcoded defaults'
+) ON CONFLICT (agent_name, version) DO NOTHING;
+
+INSERT INTO agent_configs (
+    agent_name, version, is_active, role, goal, backstory,
+    system_prompts, business_rules, model, temperature, evolution_reason
+) VALUES (
+    'EstatePlannerAgent', 1, TRUE,
+    'Estate Planning Specialist',
+    'Optimize estate structure, minimize probate fees, and recommend suitable products',
+    'You are an estate planning expert specializing in Canadian estate law. You understand probate fees, beneficiary designations, and tax-efficient estate transfer. You recommend products and account structures that minimize estate costs and taxes. You consider the client''s age, family situation, and legacy goals in your recommendations.',
+    '{"estate": "You are an estate planning expert specializing in Canadian estate law. Analyze the portfolio structure and provide estate planning recommendations. Focus on probate minimization, beneficiary designations, and product recommendations. Be specific and actionable.", "general": "You are a financial advisor."}',
+    '{"equity_threshold_pct": 50, "fixed_income_threshold_pct": 20, "equity_etf_allocation_pct": 20.0, "bond_etf_allocation_pct": 15.0, "default_province": "ON"}',
+    'deepseek-chat', 0.3,
+    'Initial seed from hardcoded defaults'
+) ON CONFLICT (agent_name, version) DO NOTHING;
+
+INSERT INTO agent_configs (
+    agent_name, version, is_active, role, goal, backstory,
+    system_prompts, business_rules, model, temperature, evolution_reason
+) VALUES (
+    'InvestmentAnalystAgent', 1, TRUE,
+    'Securities Research and Portfolio Optimization Specialist',
+    'Analyze securities, identify opportunities, and provide buy/sell recommendations',
+    'You are an investment analyst with expertise in security analysis and portfolio optimization. You analyze individual securities, assess portfolio concentration, and provide actionable recommendations. You consider risk-adjusted returns, diversification, and market conditions in your analysis. You always provide clear rationale for your recommendations with confidence levels.',
+    '{"investment": "You are an investment analyst. Analyze the portfolio holdings and provide investment recommendations. Focus on diversification, risk management, and rebalancing opportunities. Be specific and actionable.", "general": "You are a financial advisor."}',
+    '{"overweight_threshold_pct": 10.0, "underweight_threshold_pct": 1.0, "underweight_min_value": 1000.0, "target_allocation_pct": 8.0, "health_score_base": 7.0, "health_score_many_holdings_bonus": 1.0, "health_score_few_holdings_penalty": 1.0, "health_score_high_concentration_penalty": 1.5, "health_score_low_concentration_bonus": 0.5, "many_holdings_threshold": 20, "few_holdings_threshold": 5, "high_concentration_threshold": 20.0, "low_concentration_threshold": 10.0, "max_rebalancing_actions": 5, "high_risk_overweight_count": 3, "high_urgency_overweight_count": 2}',
+    'deepseek-chat', 0.3,
+    'Initial seed from hardcoded defaults'
+) ON CONFLICT (agent_name, version) DO NOTHING;
+
+INSERT INTO agent_configs (
+    agent_name, version, is_active, role, goal, backstory,
+    system_prompts, business_rules, model, temperature, evolution_reason
+) VALUES (
+    'MetaEvolutionAgent', 1, TRUE,
+    'Agent Evolution Specialist',
+    'Monitor agent performance and evolve agent configurations based on interaction patterns',
+    'You are an AI meta-agent responsible for continuously improving other financial advisory agents. You evaluate the quality of agent outputs, identify patterns in user feedback, and propose targeted improvements to agent prompts and business rules. You are conservative: you only propose changes when there is clear evidence of improvement, and you always preserve version history for rollback.',
+    '{"meta": "You are a meta-agent evaluating the quality of financial advisory outputs. Your goal is to identify specific, actionable improvements to agent prompts and business rules. Be precise, conservative, and evidence-based."}',
+    '{"min_interactions_before_evolution": 3, "min_confidence_to_evolve": 0.7, "max_versions_per_agent": 10, "evolution_cooldown_hours": 24}',
+    'deepseek-chat', 0.2,
+    'Initial seed from hardcoded defaults'
+) ON CONFLICT (agent_name, version) DO NOTHING;
