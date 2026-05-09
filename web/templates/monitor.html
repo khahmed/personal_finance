@@ -8,6 +8,12 @@
     <style>
         .monitor-header { margin-bottom: 24px; }
         .monitor-header h1 { color: #667eea; font-size: 1.8em; }
+        .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-btn { padding: 10px 18px; border: 2px solid #e0e0e0; background: white; border-radius: 8px; cursor: pointer; font-weight: 600; color: #555; }
+        .tab-btn:hover { border-color: #667eea; color: #667eea; }
+        .tab-btn.active { background: #667eea; color: white; border-color: #667eea; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
         .sessions-list { background: #f8f9fa; border-radius: 8px; padding: 16px; margin-bottom: 24px; }
         .session-row { display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid #e0e0e0; cursor: pointer; border-radius: 6px; }
         .session-row:hover { background: #e8eaf6; }
@@ -30,41 +36,127 @@
         .span-meta pre { background: #eee; padding: 8px; border-radius: 4px; overflow-x: auto; max-height: 120px; overflow-y: auto; }
         .empty-state { text-align: center; padding: 48px; color: #666; }
         .refresh-btn { margin-left: 12px; }
+        /* Agent config */
+        .config-layout { display: grid; grid-template-columns: minmax(200px, 280px) 1fr; gap: 20px; align-items: start; }
+        @media (max-width: 900px) { .config-layout { grid-template-columns: 1fr; } }
+        .agent-list-panel { background: #f8f9fa; border-radius: 8px; padding: 12px; max-height: 70vh; overflow-y: auto; }
+        .agent-list-item { padding: 10px 12px; margin-bottom: 6px; border-radius: 6px; cursor: pointer; border: 1px solid #e0e0e0; background: white; }
+        .agent-list-item:hover { border-color: #667eea; }
+        .agent-list-item.selected { background: #667eea; color: white; border-color: #667eea; }
+        .agent-list-item .meta { font-size: 11px; opacity: 0.85; margin-top: 4px; }
+        .version-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 14px; margin-bottom: 12px; background: white; }
+        .version-card.active { border-color: #4caf50; box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2); }
+        .version-card-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; }
+        .badge-active { background: #e8f5e9; color: #2e7d32; }
+        .badge-inactive { background: #f5f5f5; color: #757575; }
+        .config-pre { background: #1e1e1e; color: #d4d4d4; padding: 10px; border-radius: 6px; font-size: 11px; overflow-x: auto; max-height: 200px; overflow-y: auto; margin-top: 6px; white-space: pre-wrap; word-break: break-word; }
+        .config-field { margin-top: 10px; }
+        .config-field label { display: block; font-size: 11px; font-weight: 700; color: #667eea; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+        .config-text { font-size: 13px; line-height: 1.45; color: #333; max-height: 120px; overflow-y: auto; }
+        .btn-rollback { padding: 6px 12px; font-size: 12px; background: #ff9800; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn-rollback:hover { background: #f57c00; }
+        .btn-rollback:disabled { opacity: 0.5; cursor: not-allowed; }
+        .config-msg { padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 14px; }
+        .config-msg.ok { background: #e8f5e9; color: #1b5e20; }
+        .config-msg.err { background: #ffebee; color: #b71c1c; }
     </style>
 </head>
 <body>
     <div class="container">
         <header class="monitor-header">
             <h1>🔭 Multi-Agent Observability Monitor</h1>
-            <p class="subtitle">Monitor LLM calls and agent interactions</p>
-            <p><a href="/">← Back to Portfolio Query</a> | <a href="/api/v2/comprehensive-review" target="_blank">Trigger comprehensive review (POST)</a></p>
+            <p class="subtitle">Traces, LLM calls, and versioned agent prompts (meta-evolution)</p>
+            <p><a href="/">← Back to Portfolio Query</a> | <a href="/data">Data Management</a></p>
         </header>
 
-        <div class="main-content">
-            <div class="sessions-list">
-                <div class="results-header">
-                    <h3>Recent Sessions</h3>
-                    <button id="refreshSessions" class="btn btn-small refresh-btn">Refresh</button>
-                </div>
-                <div id="sessionsContainer">
-                    <div class="empty-state" id="sessionsEmpty">Loading sessions…</div>
-                    <div id="sessionsList" style="display: none;"></div>
-                </div>
-            </div>
+        <div class="tabs" role="tablist">
+            <button type="button" class="tab-btn active" data-tab="sessions" role="tab" aria-selected="true">Sessions &amp; traces</button>
+            <button type="button" class="tab-btn" data-tab="configs" role="tab" aria-selected="false">Agent configuration</button>
+        </div>
 
-            <div class="timeline" id="timelineSection" style="display: none;">
-                <h3>Session Timeline</h3>
-                <div id="timelineContent"></div>
+        <div id="panel-sessions" class="tab-panel active" role="tabpanel">
+            <div class="main-content">
+                <div class="sessions-list">
+                    <div class="results-header">
+                        <h3>Recent Sessions</h3>
+                        <button id="refreshSessions" class="btn btn-small refresh-btn">Refresh</button>
+                    </div>
+                    <div id="sessionsContainer">
+                        <div class="empty-state" id="sessionsEmpty">Loading sessions…</div>
+                        <div id="sessionsList" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <div class="timeline" id="timelineSection" style="display: none;">
+                    <h3>Session Timeline</h3>
+                    <div id="timelineContent"></div>
+                </div>
+                <div class="empty-state" id="timelineEmpty">Select a session to view timeline</div>
             </div>
-            <div class="empty-state" id="timelineEmpty">Select a session to view timeline</div>
+        </div>
+
+        <div id="panel-configs" class="tab-panel" role="tabpanel">
+            <div class="results-header" style="margin-bottom: 16px;">
+                <h3>Agent configs (database)</h3>
+                <button type="button" id="refreshAgents" class="btn btn-small refresh-btn">Refresh</button>
+            </div>
+            <p style="margin-bottom: 16px; color: #555; font-size: 14px;">
+                Versions are stored in <code>agent_configs</code>. The meta-agent can evolve prompts and business rules; you can roll back to any prior version here.
+                New workflow runs load the active row per agent.
+            </p>
+            <div id="configMessage" style="display: none;"></div>
+            <div class="config-layout">
+                <div class="agent-list-panel">
+                    <div class="empty-state" id="agentsEmpty">Loading agents…</div>
+                    <div id="agentsList" style="display: none;"></div>
+                </div>
+                <div>
+                    <div id="versionsEmpty" class="empty-state">Select an agent to view version history and prompts.</div>
+                    <div id="versionsContent" style="display: none;"></div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         const API_BASE = '/api/observability';
 
+        function escapeHtml(s) {
+            if (s == null) return '';
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        function showConfigMessage(text, isError) {
+            const el = document.getElementById('configMessage');
+            el.className = 'config-msg ' + (isError ? 'err' : 'ok');
+            el.textContent = text;
+            el.style.display = 'block';
+            if (!isError) setTimeout(() => { el.style.display = 'none'; }, 5000);
+        }
+
+        // ── Tabs ─────────────────────────────────────────────────────────
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.tab === tab);
+                    b.setAttribute('aria-selected', b.dataset.tab === tab ? 'true' : 'false');
+                });
+                document.querySelectorAll('.tab-panel').forEach(p => {
+                    p.classList.toggle('active', p.id === 'panel-' + tab);
+                });
+                if (tab === 'configs' && !window._agentsLoadedOnce) {
+                    window._agentsLoadedOnce = true;
+                    loadAgentsList();
+                }
+            });
+        });
+
+        // ── Sessions (existing) ─────────────────────────────────────────
         async function loadSessions() {
-            const container = document.getElementById('sessionsContainer');
             const empty = document.getElementById('sessionsEmpty');
             const list = document.getElementById('sessionsList');
             try {
@@ -86,10 +178,10 @@
                 empty.style.display = 'none';
                 list.style.display = 'block';
                 list.innerHTML = sessions.map(s => `
-                    <div class="session-row" data-session-id="${s.session_id}">
+                    <div class="session-row" data-session-id="${escapeHtml(s.session_id)}">
                         <div>
-                            <span class="session-id">${s.session_id}</span>
-                            <div class="session-meta">${s.start_time || ''} · ${s.span_count || 0} spans · ${s.status || ''}</div>
+                            <span class="session-id">${escapeHtml(s.session_id)}</span>
+                            <div class="session-meta">${escapeHtml(s.start_time || '')} · ${s.span_count || 0} spans · ${escapeHtml(s.status || '')}</div>
                         </div>
                     </div>
                 `).join('');
@@ -105,7 +197,7 @@
 
         async function selectSession(sessionId) {
             document.querySelectorAll('.session-row').forEach(r => r.classList.remove('selected'));
-            const row = document.querySelector(`.session-row[data-session-id="${sessionId}"]`);
+            const row = document.querySelector(`.session-row[data-session-id="${CSS.escape(sessionId)}"]`);
             if (row) row.classList.add('selected');
 
             const timelineSection = document.getElementById('timelineSection');
@@ -115,27 +207,26 @@
                 const res = await fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`);
                 const session = await res.json();
                 if (!res.ok) {
-                    timelineContent.innerHTML = '<p class="empty-state">' + (session.error || 'Not found') + '</p>';
+                    timelineContent.innerHTML = '<p class="empty-state">' + escapeHtml(session.error || 'Not found') + '</p>';
                     timelineSection.style.display = 'block';
                     timelineEmpty.style.display = 'none';
                     return;
                 }
                 const spans = session.spans || [];
                 timelineContent.innerHTML = spans.map(span => {
-                    const kindClass = (span.kind || '').toLowerCase().replace('_', ' ');
                     const meta = span.metadata || {};
                     const metaStr = Object.keys(meta).length ? JSON.stringify(meta, null, 2) : '';
                     const duration = span.duration_ms != null ? span.duration_ms.toFixed(0) + ' ms' : '—';
                     return `
-                        <div class="span-block ${span.kind || ''}">
+                        <div class="span-block ${escapeHtml(span.kind || '')}">
                             <div class="span-header">
-                                <span class="span-name">${span.name || span.span_id}</span>
+                                <span class="span-name">${escapeHtml(span.name || span.span_id)}</span>
                                 <span class="span-duration">${duration}</span>
                             </div>
                             <div class="span-meta">
-                                <span>Kind: ${span.kind || '—'}</span>
-                                ${span.error ? `<br><strong style="color:#c00;">Error: ${span.error}</strong>` : ''}
-                                ${metaStr ? `<pre>${metaStr.replace(/</g, '&lt;')}</pre>` : ''}
+                                <span>Kind: ${escapeHtml(span.kind || '—')}</span>
+                                ${span.error ? `<br><strong style="color:#c00;">Error: ${escapeHtml(span.error)}</strong>` : ''}
+                                ${metaStr ? `<pre>${escapeHtml(metaStr)}</pre>` : ''}
                             </div>
                         </div>
                     `;
@@ -143,7 +234,7 @@
                 timelineSection.style.display = 'block';
                 timelineEmpty.style.display = 'none';
             } catch (e) {
-                timelineContent.innerHTML = '<p class="empty-state">Error: ' + e.message + '</p>';
+                timelineContent.innerHTML = '<p class="empty-state">Error: ' + escapeHtml(e.message) + '</p>';
                 timelineSection.style.display = 'block';
                 timelineEmpty.style.display = 'none';
             }
@@ -151,6 +242,145 @@
 
         document.getElementById('refreshSessions').addEventListener('click', loadSessions);
         loadSessions();
+
+        // ── Agent configs ───────────────────────────────────────────────
+        let selectedAgentName = null;
+
+        async function loadAgentsList() {
+            const empty = document.getElementById('agentsEmpty');
+            const list = document.getElementById('agentsList');
+            try {
+                const res = await fetch(`${API_BASE}/agent-configs`);
+                const data = await res.json();
+                if (!res.ok) {
+                    empty.textContent = data.error || 'Failed to load agent configs';
+                    empty.style.display = 'block';
+                    list.style.display = 'none';
+                    return;
+                }
+                const agents = data.agents || [];
+                if (agents.length === 0) {
+                    empty.textContent = 'No rows in agent_configs. Apply database/schema.sql or run the multi-agent flow once.';
+                    empty.style.display = 'block';
+                    list.style.display = 'none';
+                    return;
+                }
+                empty.style.display = 'none';
+                list.style.display = 'block';
+                list.innerHTML = agents.map(a => `
+                    <div class="agent-list-item" data-agent="${escapeHtml(a.agent_name)}">
+                        <strong>${escapeHtml(a.agent_name)}</strong>
+                        <div class="meta">v${a.active_version != null ? a.active_version : '?'} active · ${a.version_count} version(s)</div>
+                    </div>
+                `).join('');
+                list.querySelectorAll('.agent-list-item').forEach(el => {
+                    el.addEventListener('click', () => selectAgent(el.dataset.agent));
+                });
+            } catch (e) {
+                empty.textContent = 'Error: ' + e.message;
+                empty.style.display = 'block';
+                list.style.display = 'none';
+            }
+        }
+
+        async function selectAgent(agentName) {
+            selectedAgentName = agentName;
+            document.querySelectorAll('.agent-list-item').forEach(el => {
+                el.classList.toggle('selected', el.dataset.agent === agentName);
+            });
+            const vEmpty = document.getElementById('versionsEmpty');
+            const vContent = document.getElementById('versionsContent');
+            vEmpty.style.display = 'none';
+            vContent.style.display = 'block';
+            vContent.innerHTML = '<p class="empty-state">Loading…</p>';
+            try {
+                const res = await fetch(`${API_BASE}/agent-configs/${encodeURIComponent(agentName)}`);
+                const data = await res.json();
+                if (!res.ok) {
+                    vContent.innerHTML = '<p class="empty-state">' + escapeHtml(data.error || 'Failed') + '</p>';
+                    return;
+                }
+                const versions = data.versions || [];
+                vContent.innerHTML = versions.map(v => {
+                    const active = v.is_active;
+                    const sp = JSON.stringify(v.system_prompts || {}, null, 2);
+                    const br = JSON.stringify(v.business_rules || {}, null, 2);
+                    const rollbackBtn = active
+                        ? ''
+                        : `<button type="button" class="btn-rollback" data-version="${v.version}">Rollback to v${v.version}</button>`;
+                    return `
+                        <div class="version-card ${active ? 'active' : ''}">
+                            <div class="version-card-header">
+                                <span class="badge ${active ? 'badge-active' : 'badge-inactive'}">${active ? 'ACTIVE' : 'inactive'}</span>
+                                <strong>Version ${v.version}</strong>
+                                ${v.parent_version != null ? `<span style="font-size:12px;color:#666;">parent: v${v.parent_version}</span>` : ''}
+                                <span style="font-size:12px;color:#666;">${escapeHtml(v.created_at || '')}</span>
+                                ${rollbackBtn}
+                            </div>
+                            ${v.evolution_reason ? `<p style="font-size:13px;color:#555;margin-bottom:8px;"><em>${escapeHtml(v.evolution_reason)}</em></p>` : ''}
+                            <div class="config-field">
+                                <label>Role</label>
+                                <div class="config-text">${escapeHtml(v.role || '—')}</div>
+                            </div>
+                            <div class="config-field">
+                                <label>Goal</label>
+                                <div class="config-text">${escapeHtml(v.goal || '—')}</div>
+                            </div>
+                            <div class="config-field">
+                                <label>Backstory</label>
+                                <div class="config-text">${escapeHtml(v.backstory || '—')}</div>
+                            </div>
+                            <div class="config-field">
+                                <label>System prompts (JSON)</label>
+                                <pre class="config-pre">${escapeHtml(sp)}</pre>
+                            </div>
+                            <div class="config-field">
+                                <label>Business rules (JSON)</label>
+                                <pre class="config-pre">${escapeHtml(br)}</pre>
+                            </div>
+                            <div class="config-field">
+                                <label>Model / temperature</label>
+                                <div class="config-text">${escapeHtml(String(v.model || ''))} · temp ${v.temperature != null ? v.temperature : '—'}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                vContent.querySelectorAll('.btn-rollback').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const ver = parseInt(btn.dataset.version, 10);
+                        if (!confirm(`Roll back ${agentName} to version ${ver}? The current active config will be deactivated.`)) return;
+                        btn.disabled = true;
+                        try {
+                            const r = await fetch(`${API_BASE}/agent-configs/rollback`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ agent_name: agentName, version: ver, confirm: true })
+                            });
+                            const out = await r.json();
+                            if (!r.ok) {
+                                showConfigMessage(out.error || 'Rollback failed', true);
+                                btn.disabled = false;
+                                return;
+                            }
+                            showConfigMessage(`Rolled back ${out.agent_name} to v${out.active_version}.`, false);
+                            await loadAgentsList();
+                            await selectAgent(agentName);
+                        } catch (err) {
+                            showConfigMessage(err.message, true);
+                            btn.disabled = false;
+                        }
+                    });
+                });
+            } catch (e) {
+                vContent.innerHTML = '<p class="empty-state">Error: ' + escapeHtml(e.message) + '</p>';
+            }
+        }
+
+        document.getElementById('refreshAgents').addEventListener('click', () => {
+            loadAgentsList();
+            if (selectedAgentName) selectAgent(selectedAgentName);
+        });
     </script>
 </body>
 </html>

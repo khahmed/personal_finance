@@ -341,6 +341,98 @@ class AgentConfigStore:
         except Exception:
             return []
 
+    def _is_active_bool(self, value: Any) -> bool:
+        if self._db_type == "sqlite":
+            return bool(value)
+        return bool(value)
+
+    def list_agents_summary(self) -> list:
+        """
+        Return one row per agent: name, version_count, active_version (or null).
+
+        Used by the observability UI to list evolvable agents and their versions.
+        """
+        if self._db is None:
+            return []
+
+        self._ensure_tables()
+
+        try:
+            rows = self._db.execute_query(
+                "SELECT agent_name, version, is_active FROM agent_configs "
+                "ORDER BY agent_name, version",
+                fetch=True,
+            )
+            if not rows:
+                return []
+
+            from collections import defaultdict
+
+            by_agent: Dict[str, Dict[str, Any]] = defaultdict(
+                lambda: {"versions": [], "active_version": None}
+            )
+            for r in rows:
+                r = dict(r)
+                name = r["agent_name"]
+                v = int(r["version"])
+                by_agent[name]["versions"].append(v)
+                if self._is_active_bool(r.get("is_active")):
+                    by_agent[name]["active_version"] = v
+
+            return [
+                {
+                    "agent_name": name,
+                    "version_count": len(info["versions"]),
+                    "active_version": info["active_version"],
+                }
+                for name, info in sorted(by_agent.items(), key=lambda x: x[0])
+            ]
+        except Exception as e:
+            logger.warning(f"AgentConfigStore: list_agents_summary failed: {e}")
+            return []
+
+    def list_full_versions(self, agent_name: str) -> list:
+        """
+        Return all config rows for an agent with parsed JSON fields.
+
+        Suitable for JSON APIs / observability UI (prompts, rules, rollback).
+        """
+        if self._db is None:
+            return []
+
+        self._ensure_tables()
+
+        try:
+            rows = self._db.execute_query(
+                """
+                SELECT id, agent_name, version, is_active, role, goal, backstory,
+                       system_prompts, business_rules, model, temperature,
+                       evolution_reason, parent_version, created_at
+                FROM agent_configs
+                WHERE agent_name = %s
+                ORDER BY version
+                """,
+                (agent_name,),
+                fetch=True,
+            )
+            if not rows:
+                return []
+
+            out = []
+            for r in rows:
+                d = dict(r)
+                d["is_active"] = self._is_active_bool(d.get("is_active"))
+                d["system_prompts"] = self._parse_json(d.get("system_prompts", "{}"))
+                d["business_rules"] = self._parse_json(d.get("business_rules", "{}"))
+                ca = d.get("created_at")
+                if hasattr(ca, "isoformat"):
+                    d["created_at"] = ca.isoformat()
+                out.append(d)
+            return out
+        except Exception as e:
+            logger.warning(f"AgentConfigStore: list_full_versions failed: {e}")
+            return []
+
     def rollback_to_version(self, agent_name: str, version: int) -> bool:
         """Reactivate a specific older version and deactivate the current one."""
         if self._db is None:

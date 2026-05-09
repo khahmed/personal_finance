@@ -891,6 +891,86 @@ def observability_get_session(session_id):
     return jsonify(session)
 
 
+def _get_agent_config_store():
+    """Lazy-load AgentConfigStore for observability / rollback APIs."""
+    try:
+        from multi_agent.config.agent_config_store import AgentConfigStore
+        return AgentConfigStore.get_instance()
+    except Exception as e:
+        logger.warning(f"AgentConfigStore unavailable: {e}")
+        return None
+
+
+@app.route('/api/observability/agent-configs', methods=['GET'])
+def observability_list_agent_configs():
+    """
+    List all agents with version counts and which version is active.
+    Backed by agent_configs (meta-evolution schema).
+    """
+    store = _get_agent_config_store()
+    if store is None:
+        return jsonify({'error': 'Agent configuration store unavailable', 'agents': []}), 503
+    agents = store.list_agents_summary()
+    return jsonify({'agents': agents})
+
+
+@app.route('/api/observability/agent-configs/<path:agent_name>', methods=['GET'])
+def observability_get_agent_config_versions(agent_name):
+    """Full version history for one agent (prompts, rules, audit fields)."""
+    store = _get_agent_config_store()
+    if store is None:
+        return jsonify({'error': 'Agent configuration store unavailable'}), 503
+    versions = store.list_full_versions(agent_name)
+    if not versions:
+        return jsonify({'error': 'No versions found for this agent', 'versions': []}), 404
+    return jsonify({'agent_name': agent_name, 'versions': versions})
+
+
+@app.route('/api/observability/agent-configs/rollback', methods=['POST'])
+def observability_rollback_agent_config():
+    """
+    Roll back an agent to a prior config version (reactivates that row, deactivates others).
+
+    Request JSON: { "agent_name": str, "version": int, "confirm": true }
+    """
+    store = _get_agent_config_store()
+    if store is None:
+        return jsonify({'error': 'Agent configuration store unavailable'}), 503
+
+    data = request.get_json() or {}
+    agent_name = (data.get('agent_name') or '').strip()
+    version = data.get('version')
+    confirm = data.get('confirm', False)
+
+    if not agent_name:
+        return jsonify({'error': 'agent_name is required'}), 400
+    try:
+        version = int(version)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'version must be a positive integer'}), 400
+    if version < 1:
+        return jsonify({'error': 'version must be a positive integer'}), 400
+    if confirm is not True:
+        return jsonify({'error': 'confirm must be true to rollback'}), 400
+
+    existing = store.list_full_versions(agent_name)
+    version_ids = {v['version'] for v in existing}
+    if version not in version_ids:
+        return jsonify({
+            'error': f'Version {version} does not exist for {agent_name}',
+        }), 404
+
+    ok = store.rollback_to_version(agent_name, version)
+    if not ok:
+        return jsonify({'error': 'Rollback failed'}), 500
+
+    return jsonify({
+        'success': True,
+        'agent_name': agent_name,
+        'active_version': version,
+    })
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
 
