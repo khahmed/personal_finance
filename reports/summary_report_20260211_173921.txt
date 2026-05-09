@@ -1,0 +1,27 @@
+================================================================================
+PORTFOLIO SUMMARY REPORT
+================================================================================
+Generated: 2026-02-11 17:39:32
+
+PORTFOLIO OVERVIEW
+--------------------------------------------------------------------------------
+Total Portfolio Value: $2,837,930.69
+Number of Accounts: 6
+Number of Securities: 33
+Number of Institutions: 3
+Total Gain/Loss: $411,063.37 (16.94%)
+
+CONCENTRATION RISK
+--------------------------------------------------------------------------------
+Top 5 Holdings: 15.62%
+Top 10 Holdings: 30.01%
+Largest Asset Category: Equity (84.54%)
+Largest Institution: DemoInvestCo (48.38%)
+
+DIVERSIFICATION METRICS
+--------------------------------------------------------------------------------
+Actual Number of Holdings: 79
+Effective Number of Holdings: 51.61
+Diversification Ratio: 0.65
+Number of Asset Categories: 2
+

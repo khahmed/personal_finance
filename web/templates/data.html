@@ -113,6 +113,12 @@
     </div>
 
     <script>
+        function escapeHtml(s) {
+            if (s == null || s === '') return '';
+            const d = document.createElement('div');
+            d.textContent = String(s);
+            return d.innerHTML;
+        }
         function setOutput(elt, lines, isEmpty) {
             elt.textContent = lines && lines.length ? lines.join('\n') : (isEmpty ? 'Output will appear here.' : '');
             elt.classList.toggle('empty', !lines || !lines.length);
@@ -145,17 +151,25 @@
                 const data = await res.json();
                 setOutput(out, data.log_lines || [], false);
                 if (data.success && data.summary) {
-                    let html = '<strong>Summary</strong><br>Accounts: ' + (data.summary.total_accounts ?? '') + ', Statements: ' + (data.summary.total_statements ?? '') + ', Holdings: ' + (data.summary.total_holdings ?? '');
-                    if (data.summary.portfolio_summary && data.summary.portfolio_summary.length) {
+                    const sm = data.summary;
+                    let html = '<strong>Summary</strong><br>Accounts: ' + escapeHtml(String(sm.total_accounts ?? ''))
+                        + ', Statements: ' + escapeHtml(String(sm.total_statements ?? ''))
+                        + ', Holdings: ' + escapeHtml(String(sm.total_holdings ?? ''));
+                    if (sm.portfolio_summary && sm.portfolio_summary.length) {
                         html += '<br><br><table><tr><th>Institution</th><th>Accounts</th><th>Total value</th></tr>';
-                        data.summary.portfolio_summary.forEach(function (r) {
-                            html += '<tr><td>' + (r.institution_name || '') + '</td><td>' + (r.num_accounts || '') + '</td><td>$' + (r.total_value != null ? Number(r.total_value).toLocaleString('en-CA', { minimumFractionDigits: 2 }) : '') + '</td></tr>';
+                        sm.portfolio_summary.forEach(function (r) {
+                            const money = r.total_value != null
+                                ? Number(r.total_value).toLocaleString('en-CA', { minimumFractionDigits: 2 })
+                                : '';
+                            html += '<tr><td>' + escapeHtml(r.institution_name || '')
+                                + '</td><td>' + escapeHtml(String(r.num_accounts ?? ''))
+                                + '</td><td>$' + escapeHtml(money) + '</td></tr>';
                         });
                         html += '</table>';
                     }
                     setSummary(sum, html, true);
                 }
-                if (!data.success) setSummary(sum, '<span style="color:#c53030">' + (data.error || 'Failed') + '</span>', true);
+                if (!data.success) setSummary(sum, '<span style="color:#c53030">' + escapeHtml(data.error || 'Failed') + '</span>', true);
             } catch (e) {
                 setOutput(out, ['Request failed: ' + e.message], false);
             }
@@ -181,8 +195,13 @@
                 setOutput(out, data.log_lines || [], false);
                 if (data.success && data.summary) {
                     const s = data.summary;
-                    setSummary(sum, '<strong>Summary</strong><br>Total: ' + (s.total ?? 0) + ', Successful: ' + (s.successful ?? 0) + ', Failed: ' + (s.failed ?? 0) + (s.failed_files && s.failed_files.length ? '<br>Failed files: ' + s.failed_files.join(', ') : ''), true);
-                } else if (data.error) setSummary(sum, '<span style="color:#c53030">' + data.error + '</span>', true);
+                    const failedPart = (s.failed_files && s.failed_files.length)
+                        ? '<br>Failed files: ' + s.failed_files.map(function (f) { return escapeHtml(f); }).join(', ')
+                        : '';
+                    setSummary(sum, '<strong>Summary</strong><br>Total: ' + escapeHtml(String(s.total ?? 0))
+                        + ', Successful: ' + escapeHtml(String(s.successful ?? 0))
+                        + ', Failed: ' + escapeHtml(String(s.failed ?? 0)) + failedPart, true);
+                } else if (data.error) setSummary(sum, '<span style="color:#c53030">' + escapeHtml(data.error) + '</span>', true);
             } catch (e) {
                 setOutput(out, ['Request failed: ' + e.message], false);
             }
@@ -206,8 +225,11 @@
                 });
                 const data = await res.json();
                 setOutput(out, data.log_lines || [], false);
-                if (data.success && data.summary) setSummary(sum, 'Reports written to <strong>' + (data.summary.output_dir || outputDir) + '</strong>', true);
-                if (!data.success && data.error) setSummary(sum, '<span style="color:#c53030">' + data.error + '</span>', true);
+                if (data.success && data.summary) {
+                    setSummary(sum, 'Reports written to <strong>'
+                        + escapeHtml(data.summary.output_dir || outputDir) + '</strong>', true);
+                }
+                if (!data.success && data.error) setSummary(sum, '<span style="color:#c53030">' + escapeHtml(data.error) + '</span>', true);
             } catch (e) {
                 setOutput(out, ['Request failed: ' + e.message], false);
             }
@@ -236,9 +258,10 @@
                 });
                 const data = await res.json();
                 setOutput(out, data.log_lines || [], false);
-                if (data.success && data.summary) setSummary(sum, 'Reset completed: ' + (data.summary.reset_type || resetType), true);
-                else if (data.cancelled) setSummary(sum, 'Reset was cancelled.', true);
-                else if (data.error) setSummary(sum, '<span style="color:#c53030">' + data.error + '</span>', true);
+                if (data.success && data.summary) {
+                    setSummary(sum, 'Reset completed: ' + escapeHtml(String(data.summary.reset_type || resetType)), true);
+                } else if (data.cancelled) setSummary(sum, 'Reset was cancelled.', true);
+                else if (data.error) setSummary(sum, '<span style="color:#c53030">' + escapeHtml(data.error) + '</span>', true);
             } catch (e) {
                 setOutput(out, ['Request failed: ' + e.message], false);
             }

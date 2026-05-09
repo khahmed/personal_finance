@@ -1,0 +1,27 @@
+================================================================================
+PORTFOLIO SUMMARY REPORT
+================================================================================
+Generated: 2026-05-04 13:21:05
+
+PORTFOLIO OVERVIEW
+--------------------------------------------------------------------------------
+Total Portfolio Value: $3,224,433.31
+Number of Accounts: 9
+Number of Securities: 76
+Number of Institutions: 4
+Total Gain/Loss: $658,340.87 (54.56%)
+
+CONCENTRATION RISK
+--------------------------------------------------------------------------------
+Top 5 Holdings: 46.91%
+Top 10 Holdings: 66.14%
+Largest Asset Category: Equity (73.21%)
+Largest Institution: ScotiaBank (57.93%)
+
+DIVERSIFICATION METRICS
+--------------------------------------------------------------------------------
+Actual Number of Holdings: 104
+Effective Number of Holdings: 15.52
+Diversification Ratio: 0.15
+Number of Asset Categories: 4
+
