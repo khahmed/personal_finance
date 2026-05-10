@@ -6,6 +6,12 @@
     <title>Multi-Agent Observability Monitor</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
+        /* Override shared app grid layout for this page. */
+        .monitor-page .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: block;
+        }
         .monitor-header { margin-bottom: 24px; }
         .monitor-header h1 { color: #667eea; font-size: 1.8em; }
         .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -62,7 +68,7 @@
         .config-msg.err { background: #ffebee; color: #b71c1c; }
     </style>
 </head>
-<body>
+<body class="monitor-page">
     <div class="container">
         <header class="monitor-header">
             <h1>🔭 Multi-Agent Observability Monitor</h1>

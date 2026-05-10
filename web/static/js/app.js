@@ -1184,20 +1184,40 @@ function formatInvestmentAnalysis(data) {
     return html;
 }
 
+/**
+ * Render markdown from the LLM to safe HTML (GFM-style). Falls back to escaped plain text.
+ */
+function renderMarkdown(md) {
+    if (md == null || md === '') return '';
+    const text = String(md);
+    if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
+        try {
+            const raw = marked.parse(text, { gfm: true, breaks: true });
+            return DOMPurify.sanitize(raw);
+        } catch (e) {
+            console.warn('Markdown render failed:', e);
+        }
+    }
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function formatLLMInsights(insights) {
     let html = '<div class="llm-insights-section">';
-    html += `<h5>AI Analysis <span style="font-size: 0.8em; color: #666;">(${insights.llm_provider})</span></h5>`;
+    const provider = escapeHtml(String(insights.llm_provider || ''));
+    html += `<h5>AI Analysis <span style="font-size: 0.8em; color: #666;">(${provider})</span></h5>`;
 
     if (insights.explanation) {
-        html += `<p>${insights.explanation}</p>`;
+        html += `<div class="llm-markdown">${renderMarkdown(insights.explanation)}</div>`;
     }
 
     if (insights.recommendations && insights.recommendations.length > 0) {
         html += '<ul>';
         insights.recommendations.forEach(rec => {
-            html += `<li><strong>${rec.priority}:</strong> ${rec.action}`;
-            if (rec.rationale) html += `<br><em>${rec.rationale}</em>`;
-            if (rec.impact) html += `<br>Impact: ${rec.impact}`;
+            html += `<li><strong>${escapeHtml(String(rec.priority || ''))}:</strong> ${escapeHtml(String(rec.action || ''))}`;
+            if (rec.rationale) html += `<br><em>${escapeHtml(String(rec.rationale))}</em>`;
+            if (rec.impact) html += `<br>Impact: ${escapeHtml(String(rec.impact))}`;
             html += '</li>';
         });
         html += '</ul>';

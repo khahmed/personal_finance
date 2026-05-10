@@ -731,6 +731,93 @@ table tr:hover {
     color: #333;
 }
 
+/* Markdown-rendered LLM narrative (AI Analysis) */
+.llm-markdown {
+    font-size: 14px;
+    line-height: 1.65;
+    color: #333;
+    margin-top: 8px;
+}
+
+.llm-markdown > *:first-child {
+    margin-top: 0;
+}
+
+.llm-markdown > *:last-child {
+    margin-bottom: 0;
+}
+
+.llm-markdown h1,
+.llm-markdown h2,
+.llm-markdown h3,
+.llm-markdown h4 {
+    margin: 1em 0 0.5em;
+    font-weight: 600;
+    color: #444;
+    line-height: 1.3;
+}
+
+.llm-markdown h1 { font-size: 1.35em; }
+.llm-markdown h2 { font-size: 1.2em; }
+.llm-markdown h3 { font-size: 1.1em; }
+
+.llm-markdown p {
+    margin: 0.65em 0;
+}
+
+.llm-markdown ul,
+.llm-markdown ol {
+    margin: 0.65em 0;
+    padding-left: 1.5em;
+}
+
+.llm-markdown li {
+    margin: 0.35em 0;
+    padding: 0;
+    background: none;
+    border: none;
+}
+
+.llm-markdown hr {
+    border: none;
+    border-top: 1px solid #d0d7e2;
+    margin: 1.25em 0;
+}
+
+.llm-markdown blockquote {
+    margin: 0.75em 0;
+    padding-left: 12px;
+    border-left: 3px solid #c5cae9;
+    color: #555;
+}
+
+.llm-markdown code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.9em;
+    background: rgba(0, 0, 0, 0.06);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.llm-markdown pre {
+    margin: 0.75em 0;
+    padding: 12px 14px;
+    background: #f4f5f7;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 13px;
+}
+
+.llm-markdown pre code {
+    background: none;
+    padding: 0;
+}
+
+.llm-markdown strong {
+    font-weight: 600;
+    color: #222;
+}
+
 @media (max-width: 1024px) {
     .container {
         grid-template-columns: 1fr;
