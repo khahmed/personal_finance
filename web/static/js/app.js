@@ -24,6 +24,12 @@ const examplesList = document.getElementById('examplesList');
 const schemaInfo = document.getElementById('schemaInfo');
 const chartContainer = document.getElementById('chartContainer');
 const chartCanvas = document.getElementById('resultsChart');
+const sqlExportActions = document.getElementById('sqlExportActions');
+const exportSqlPngBtn = document.getElementById('exportSqlPngBtn');
+const exportSqlPdfBtn = document.getElementById('exportSqlPdfBtn');
+const agentExportActions = document.getElementById('agentExportActions');
+const exportAgentPngBtn = document.getElementById('exportAgentPngBtn');
+const exportAgentPdfBtn = document.getElementById('exportAgentPdfBtn');
 
 // Chart instance
 let currentChart = null;
@@ -78,6 +84,19 @@ function setupEventListeners() {
             executeQuery();
         }
     });
+
+    if (exportSqlPngBtn) {
+        exportSqlPngBtn.addEventListener('click', () => exportResults('sql', 'png'));
+    }
+    if (exportSqlPdfBtn) {
+        exportSqlPdfBtn.addEventListener('click', () => exportResults('sql', 'pdf'));
+    }
+    if (exportAgentPngBtn) {
+        exportAgentPngBtn.addEventListener('click', () => exportResults('agent', 'png'));
+    }
+    if (exportAgentPdfBtn) {
+        exportAgentPdfBtn.addEventListener('click', () => exportResults('agent', 'pdf'));
+    }
 }
 
 async function loadExamples() {
@@ -350,6 +369,7 @@ function showResults(data, columns, count) {
     
     // Show results
     resultsDisplay.style.display = 'block';
+    if (sqlExportActions) sqlExportActions.style.display = 'inline-flex';
     
     // Render initial view
     switchChartType(autoChartType);
@@ -742,6 +762,7 @@ function hideAll() {
     resultsDisplay.style.display = 'none';
     codeDisplay.style.display = 'none';
     loadingIndicator.style.display = 'none';
+    if (sqlExportActions) sqlExportActions.style.display = 'none';
 }
 
 function clearAll() {
@@ -873,6 +894,7 @@ async function executeAnalysis(analysisType) {
     agentErrorMessage.style.display = 'none';
     comprehensiveResults.style.display = 'none';
     individualResults.style.display = 'none';
+    if (agentExportActions) agentExportActions.style.display = 'none';
 
     // Show loading
     agentLoadingIndicator.style.display = 'block';
@@ -1016,6 +1038,7 @@ function displayComprehensiveResults(data) {
     }
 
     comprehensiveResults.style.display = 'block';
+    if (agentExportActions) agentExportActions.style.display = 'inline-flex';
 }
 
 function displayIndividualAnalysis(title, data, icon) {
@@ -1038,6 +1061,7 @@ function displayIndividualAnalysis(title, data, icon) {
 
     individualResults.innerHTML = html;
     individualResults.style.display = 'block';
+    if (agentExportActions) agentExportActions.style.display = 'inline-flex';
 }
 
 function formatPortfolioSummary(data) {
@@ -1230,5 +1254,133 @@ function formatLLMInsights(insights) {
 function formatNumber(value) {
     if (typeof value !== 'number') return value;
     return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function queryTimestamp() {
+    const now = new Date();
+    const pretty = now.toLocaleString();
+    const compact = now.toISOString().replace(/[:]/g, '-').replace(/\..+/, '');
+    return { pretty, compact };
+}
+
+function buildExportContainer(mode, tsPretty) {
+    const source = mode === 'sql'
+        ? document.querySelector('#sqlMode .results-section')
+        : document.querySelector('#agentMode .agent-results-section');
+    if (!source) return null;
+
+    const wrap = document.createElement('div');
+    wrap.style.position = 'fixed';
+    wrap.style.left = '-99999px';
+    wrap.style.top = '0';
+    wrap.style.width = '1200px';
+    wrap.style.background = '#ffffff';
+    wrap.style.color = '#222';
+    wrap.style.padding = '20px';
+    wrap.style.boxSizing = 'border-box';
+    wrap.style.fontFamily = getComputedStyle(document.body).fontFamily;
+
+    const header = document.createElement('div');
+    header.style.marginBottom = '12px';
+    header.innerHTML = `<h2 style="margin:0 0 6px 0;">${mode === 'sql' ? 'SQL Query Analysis' : 'Multi-Agent Analysis'}</h2><div style="font-size:14px;color:#555;">Query timestamp: ${escapeHtml(tsPretty)}</div>`;
+    wrap.appendChild(header);
+
+    const cloned = source.cloneNode(true);
+    cloned.querySelectorAll('.export-actions, button').forEach(el => el.remove());
+
+    // Chart.js draws into <canvas>; cloneNode() does not copy pixel content.
+    // Copy each source canvas bitmap into the cloned canvas so chart exports
+    // include rendered line/bar/pie visuals instead of blank boxes.
+    const srcCanvases = source.querySelectorAll('canvas');
+    const dstCanvases = cloned.querySelectorAll('canvas');
+    const pairCount = Math.min(srcCanvases.length, dstCanvases.length);
+    for (let i = 0; i < pairCount; i += 1) {
+        const src = srcCanvases[i];
+        const dst = dstCanvases[i];
+        try {
+            // Preserve intrinsic size and draw the current bitmap.
+            dst.width = src.width;
+            dst.height = src.height;
+            dst.style.width = src.style.width;
+            dst.style.height = src.style.height;
+            const ctx = dst.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(src, 0, 0);
+            }
+        } catch (err) {
+            console.warn('Canvas copy failed during export:', err);
+        }
+    }
+
+    wrap.appendChild(cloned);
+    document.body.appendChild(wrap);
+    return wrap;
+}
+
+function canvasWithTimestamp(baseCanvas, tsPretty) {
+    const topPad = 40;
+    const c = document.createElement('canvas');
+    c.width = baseCanvas.width;
+    c.height = baseCanvas.height + topPad;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = '#333';
+    ctx.font = '16px sans-serif';
+    ctx.fillText(`Query timestamp: ${tsPretty}`, 16, 26);
+    ctx.drawImage(baseCanvas, 0, topPad);
+    return c;
+}
+
+async function exportResults(mode, format) {
+    const { pretty, compact } = queryTimestamp();
+    const container = buildExportContainer(mode, pretty);
+    if (!container) {
+        alert('No results to export.');
+        return;
+    }
+
+    try {
+        const canvas = await html2canvas(container, {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            useCORS: true
+        });
+        const stamped = canvasWithTimestamp(canvas, pretty);
+        const baseName = `${mode === 'sql' ? 'sql-analysis' : 'multi-agent-analysis'}-${compact}`;
+
+        if (format === 'png') {
+            const url = stamped.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${baseName}.png`;
+            a.click();
+        } else {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const margin = 10;
+            const imgData = stamped.toDataURL('image/png');
+            const imgW = pageW - margin * 2;
+            const imgH = (stamped.height * imgW) / stamped.width;
+
+            pdf.setFontSize(10);
+            pdf.text(`Generated: ${pretty}`, margin, 7);
+            if (imgH <= pageH - margin * 2) {
+                pdf.addImage(imgData, 'PNG', margin, margin + 2, imgW, imgH);
+            } else {
+                // Scale down to fit single page for now.
+                const fitH = pageH - margin * 2 - 2;
+                pdf.addImage(imgData, 'PNG', margin, margin + 2, imgW, fitH);
+            }
+            pdf.save(`${baseName}.pdf`);
+        }
+    } catch (err) {
+        console.error('Export failed:', err);
+        alert(`Export failed: ${err.message}`);
+    } finally {
+        container.remove();
+    }
 }
 

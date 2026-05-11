@@ -818,6 +818,12 @@ table tr:hover {
     color: #222;
 }
 
+.export-actions {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+}
+
 @media (max-width: 1024px) {
     .container {
         grid-template-columns: 1fr;

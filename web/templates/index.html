@@ -72,7 +72,13 @@
                 <div id="resultsDisplay" class="results-display" style="display: none;">
                     <div class="results-header">
                         <h3>Results</h3>
-                        <span id="rowCount" class="row-count"></span>
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <span id="rowCount" class="row-count"></span>
+                            <div id="sqlExportActions" class="export-actions" style="display: none;">
+                                <button id="exportSqlPngBtn" class="btn btn-small">Save Image</button>
+                                <button id="exportSqlPdfBtn" class="btn btn-small">Save PDF</button>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="chart-type-selector">
@@ -215,6 +221,10 @@
                     </div>
 
                     <div id="agentErrorMessage" class="error-message" style="display: none;"></div>
+                    <div id="agentExportActions" class="export-actions" style="display: none; margin-bottom: 12px;">
+                        <button id="exportAgentPngBtn" class="btn btn-small">Save Image</button>
+                        <button id="exportAgentPdfBtn" class="btn btn-small">Save PDF</button>
+                    </div>
 
                     <!-- Comprehensive Review Results -->
                     <div id="comprehensiveResults" class="agent-results" style="display: none;">
@@ -274,6 +284,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
