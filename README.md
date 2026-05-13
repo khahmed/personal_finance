@@ -1,4 +1,4 @@
-# Personal Banking Portfolio Management System
+# Personal Finance Portfolio Management System
 
 A comprehensive system for parsing financial statements, storing holdings data in PostgreSQL, and analyzing portfolio trends over time. Features AI-powered parser generation and a natural language query interface.
 
